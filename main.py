@@ -10,6 +10,7 @@ Original file is located at
 """
 
 
+
 # Call the function
 
 
@@ -21,9 +22,9 @@ from inference import *
 import streamlit as st
 
 # Main Streamlit App
-st.title("Vector Database and Chat Model Inference")
+st.title("RAG MODEL")
 
-# Use session state to manage the `preprocessing_done` flag and `retriever`
+# Use session state to manage the preprocessing_done flag and retriever
 if "preprocessing_done" not in st.session_state:
     st.session_state.preprocessing_done = False
 if "retriever" not in st.session_state:
@@ -33,21 +34,37 @@ if not st.session_state.preprocessing_done:
     st.header("Preprocessing")
 
     # User inputs for preprocessing
-    doc_path = st.text_input("Enter the path to the document:")
-    embedding_model = st.selectbox(
-        "Choose an embedding model:",
-        [
+    doc_path = st.file_uploader("Upload your Word Document (.docx)", type=["docx"])
+
+    embedding_models = [
             "all-MiniLM-L6-v2",
             "paraphrase-MiniLM-L6-v2",
             "distilbert-base-nli-stsb-mean-tokens",
             "all-distilroberta-v1",
             "paraphrase-distilroberta-base-v1",
             "stsb-roberta-base",
-            "msmarco-distilbert-base-tas-b",
         ]
-    )
-    chunk_size = st.number_input("Enter chunk size:", min_value=1, value=2000, step=1)
-    chunk_overlap = st.number_input("Enter chunk overlap:", min_value=1, value=500, step=1)
+    st.markdown("### Choose an Embedding Model:")
+    col1, col2 = st.columns(2)
+    selected_embedding_model = st.session_state.get("selected_embedding_model", None)
+    
+    # Create buttons and highlight selected one
+    with col1:
+        for model in embedding_models[:len(embedding_models)//2]:
+            if st.button(model, key=model):
+                st.session_state.selected_embedding_model = model
+
+    with col2:
+        for model in embedding_models[len(embedding_models)//2:]:
+            if st.button(model, key=model):
+                st.session_state.selected_embedding_model = model
+
+    # Display the selected model
+    if selected_embedding_model:
+        st.markdown(f"*Selected Model:* **{selected_embedding_model}**")
+
+    chunk_size = st.number_input("**Enter chunk size:**", min_value=1, value=2000, step=1)
+    chunk_overlap = st.number_input("**Enter chunk overlap:**", min_value=1, value=500, step=1)
 
     if st.button("Next"):
         if doc_path:
@@ -55,7 +72,7 @@ if not st.session_state.preprocessing_done:
                 try:
                     # Call the preprocess_vectordbs function directly
                     index, docstore, index_to_docstore_id, vector_store, retriever, client, pinecone_index,embedding_model_global ,vs= preprocess_vectordbs(
-                        doc_path, embedding_model, chunk_size, chunk_overlap
+                        doc_path, selected_embedding_model, chunk_size, chunk_overlap
                     )
                     st.session_state.preprocessing_done = True  # Persist the flag
                     st.session_state.retriever = retriever
@@ -72,37 +89,59 @@ if not st.session_state.preprocessing_done:
         else:
             st.warning("Please provide all inputs before running preprocessing.")
 else:
-    st.header("Inference")
+    st.header("Inferencing")
 
-    # User inputs for inference
-    vectordb_name = st.selectbox(
-        "Choose a vector database:",
-        ["Pinecone", "Chroma", "FAISS", "Qdrant", "Weaviate"]
-    )
-    chat_model = st.selectbox(
-        "Choose a chat model:",
-        [
-            "Qwen/QwQ-32B-Preview",
-            "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-            "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
-            "scb10x/scb10x-llama3-typhoon-v1-5-8b-instruct",
-            "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
-        ]
-    )
-    question = st.text_input("Enter your question:")
+   # User inputs for inference
+    vectordb_names = ["Pinecone", "Chroma", "FAISS", "Qdrant", "Weaviate"]
+    st.markdown("### Choose a Vector Database:")
+
+    # Create 2 columns for displaying the vector databases
+    cols = st.columns(5)
+
+    # Loop through the vector databases and display them in the columns
+    for i, db_name in enumerate(vectordb_names):
+        with cols[i % 5]:  # Distribute databases between the two columns
+            if st.button(db_name, key=db_name):
+                st.session_state.selected_vectordb = db_name
+
+    # Display the selected vector database
+    selected_vectordb = st.session_state.get("selected_vectordb", None)
+    if selected_vectordb:
+        st.markdown(f"*Selected Vector Database:* **{selected_vectordb}**")
+
+    chat_models = [
+    "Qwen/QwQ-32B-Preview",
+    "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
+    "scb10x/scb10x-llama3-typhoon-v1-5-8b-instruct",
+    "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+    ]
+
+    st.markdown("### Choose a Chat Model:")
+
+    # Create 2 columns for displaying the models
+    cols = st.columns(1)
+
+    # Loop through the models and display them in the columns
+    for i, model in enumerate(chat_models):
+        if st.button(model, key=model):
+            st.session_state.selected_chat_model = model
+
+    # Display the selected chat model
+    selected_chat_model = st.session_state.get("selected_chat_model", None)
+    if selected_chat_model:
+        st.markdown(f"*Selected Chat Model:* **{selected_chat_model}**")
+    st.markdown("### Enter your Question:")
+    question = st.text_input("")
 
     if st.button("Run Inference"):
         if question:
             with st.spinner("Running inference..."):
                 try:
                     # Call the inference function directly
-                   inference(vectordb_name, chat_model, question, st.session_state.retriever,st.session_state.embedding_model_global,st.session_state.index,st.session_state.docstore,st.session_state.client,st.session_state.pinecone_index,st.session_state.vs)
+                   inference(selected_vectordb, selected_chat_model, question, st.session_state.retriever,st.session_state.embedding_model_global,st.session_state.index,st.session_state.docstore,st.session_state.client,st.session_state.pinecone_index,st.session_state.vs)
                     #st.write("Answer:", answer)
                 except Exception as e:
                     st.error(f"An error occurred: {e}")
         else:
             st.warning("Please enter a question to run inference.")
-
-
-
-

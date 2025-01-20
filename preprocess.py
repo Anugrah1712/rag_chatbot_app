@@ -120,7 +120,7 @@ def preprocess_pinecone(text,embedding_model_name):
 
     # ... (your existing code) ...
 
-    index_name = "test4"
+    index_name = "test5"
 
     pinecone = Pinecone(
         api_key="pcsk_42Yw14_EaKdaMLiAJfWub3s2sEJYPW3jyXXjdCYkH8Mh8rD8wWJ3pS6oCCC9PGqBNuDTuf",
