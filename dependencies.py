@@ -18,6 +18,8 @@ def install_dependencies():
         "pip install pymilvus",
         "pip install weaviate-client",
         "pip install langchain-weaviate",
+        "pip install selenium",
+        "pip install PyPDF2"
 
     ]
 
