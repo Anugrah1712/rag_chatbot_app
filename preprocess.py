@@ -1,35 +1,102 @@
 import streamlit as st
-def preprocess_text(word_file_path, size,overlap):
+def preprocess_text(files, links, size, overlap):
+    import os
+    from PyPDF2 import PdfReader
+    from docx import Document as DocxDocument
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    from langchain.docstore.document import Document
+    from selenium import webdriver
+    from selenium.webdriver.chrome.service import Service
+    from selenium.webdriver.common.by import By
+    import time
 
-  import os
+    paragraphs = []
 
+    # Step 1: Process each file
+    for file in files:
+        if file.name.endswith(".pdf"):
+            reader = PdfReader(file)
+            for page in reader.pages:
+                page_text = page.extract_text()
+                if page_text:  # Ensure the page has text
+                    paragraphs.extend(page_text.split("\n"))  # Split by line breaks
+        elif file.name.endswith(".docx"):
+            docx = DocxDocument(file)
+            for paragraph in docx.paragraphs:
+                if paragraph.text.strip():  # Ensure the paragraph has text
+                    paragraphs.append(paragraph.text)
 
-  # Step 2: Read the Word file if it exists
-  from docx import Document
+    # Step 2: Process each link using Selenium
+    chrome_driver_path = r"D:\chromedriver-win64\chromedriver-win64\chromedriver.exe"  # Update this path
+    service = Service(chrome_driver_path)
+    driver = webdriver.Chrome(service=service)
 
-  # Path to the Word file in the Kaggle dataset
+    for link in links:
+        try:
+            driver.get(link)
+            time.sleep(3)  # Allow the page to load
+            body_text = driver.find_element(By.TAG_NAME, "body").text
+            paragraphs.extend(body_text.split("\n"))  # Add the page's text content
 
+            # Extract FAQs
+            try:
+                faq_container = driver.find_element(By.CSS_SELECTOR, ".faqs.aem-GridColumn.aem-GridColumn--default--12")
 
-  # Read the Word file
-  doc = Document(word_file_path)
+                # Show more content if the button is available
+                while True:
+                    try:
+                        show_more_button = faq_container.find_element(By.CSS_SELECTOR, ".accordion_toggle_show-more")
+                        if show_more_button.is_displayed():
+                            show_more_button.click()
+                            time.sleep(1)
+                        else:
+                            break
+                    except Exception:
+                        break
 
-  # Extract text from the document
-  full_text = []
-  for para in doc.paragraphs:
-      full_text.append(para.text)
+                # Extract FAQ questions and answers
+                toggle_buttons = faq_container.find_elements(By.CSS_SELECTOR, ".accordion_toggle, .accordion_row")
+                all_faqs = []
+                for button in toggle_buttons:
+                    try:
+                        button.click()
+                        time.sleep(1)
+                        expanded_content = faq_container.find_elements(By.CSS_SELECTOR, ".accordion_body, .accordionbody_links, .aem-rte-content")
+                        for content in expanded_content:
+                            text = content.text.strip()
+                            if text and text not in [faq['answer'] for faq in all_faqs]:
+                                question = button.text.strip()
+                                if question:
+                                    all_faqs.append({"question": question, "answer": text})
 
-  # Join all paragraphs into a single string
-  document_text = '\n'.join(full_text)
-  #print(document_text)
-  from langchain.text_splitter import RecursiveCharacterTextSplitter
-  from langchain.docstore.document import Document
+                    except Exception as e:
+                        print(f"Error interacting with button: {e}")
 
-  text_splitter = RecursiveCharacterTextSplitter(chunk_size=size, chunk_overlap=overlap)
-  # Convert the string to a Document object
-  docs = [Document(page_content=document_text)]
-  text = text_splitter.split_documents(docs) # Pass the Document object to split_documents
-  #/kaggle/input/dataset1-fd/FD.docx
-  return text
+                print("Entire Page Content:")
+                print(body_text)
+
+                print("\nExtracted FAQ Questions and Answers:")
+                for i, faq in enumerate(all_faqs, start=1):
+                    print(f"Q: {faq['question']}\n   A: {faq['answer']}\n")
+
+            except Exception as faq_error:
+                print(f"FAQ extraction failed for {link}: {faq_error}")
+        except Exception as link_error:
+            print(f"Failed to process link {link}: {link_error}")
+        finally:
+            driver.quit()
+
+    # Step 3: Remove empty paragraphs
+    paragraphs = [para.strip() for para in paragraphs if para.strip()]
+
+    # Step 4: Convert paragraphs to Document objects
+    docs = [Document(page_content=para) for para in paragraphs]
+
+    # Step 5: Use RecursiveCharacterTextSplitter for chunking
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=size, chunk_overlap=overlap)
+    text_chunks = text_splitter.split_documents(docs)
+
+    return text_chunks
 
 
 
@@ -172,8 +239,8 @@ def preprocess_weaviate(text, embedding_model_name):
     import numpy as np
     embedding_model = SentenceTransformerEmbeddings(model_name=embedding_model_name)
     import os
-    os.environ["WEAVIATE_URL"] = "https://9f6vknbcqwgzh4q4j8srna.c0.asia-southeast1.gcp.weaviate.cloud"
-    os.environ["WEAVIATE_API_KEY"] = "CM0FKsSkL5gndIvZdYeuSc6vNY8f3MdApgGt"
+    os.environ["WEAVIATE_URL"] = "https://jrstxmtsfe1p4sw1imvta.c0.asia-southeast1.gcp.weaviate.cloud/"
+    os.environ["WEAVIATE_API_KEY"] = "YoJvj3julM7BALAdHUjWrXPSkE95HsdxWtHn"
 
     weaviate_url = os.environ["WEAVIATE_URL"]
     weaviate_api_key = os.environ["WEAVIATE_API_KEY"]
@@ -201,10 +268,13 @@ from langchain.embeddings import SentenceTransformerEmbeddings
 # Declare embedding_model_global as a global variable
 embedding_model_global = None
 
-def preprocess_vectordbs(word_file_path, embedding_model_name, size, overlap):
+def preprocess_vectordbs(files,links, embedding_model_name, size, overlap):
+
+
+
     global embedding_model_global  # Declare embedding_model_global as global within the function
 
-    text = preprocess_text(word_file_path, size,overlap)
+    text = preprocess_text(files,links, size,overlap)
     st.success("Preprocessing Text Complete!")
     persist_directory = 'db'
     # Assign the model directly, not the model name
@@ -216,22 +286,25 @@ def preprocess_vectordbs(word_file_path, embedding_model_name, size, overlap):
     # Process FAISS
     index, docstore, index_to_docstore_id, vector_store = preprocess_faiss(text, embedding_model_name) #embedding_model_name changed to embedding_model_global
     st.success("Preprocessing Faiss Complete!")
-    # Process Qdrant
-    embeddings = vector_store.index.reconstruct_n(0, len(text))
-    client_url = "https://186e02e2-6d10-4b48-baf1-273a91f6c628.us-east4-0.gcp.cloud.qdrant.io:6333"
-    client_api_key = "khkhQd22_WZRUBXQg_kL_I08CH3L5HmuHGrbETbVaZlyzCQfyjG0_w"
-    collection_name = "text_vectors"
-    client = preprocess_qdrant(text, embeddings, client_url, client_api_key, collection_name)
+    # Process Qdrant UNMASK LATER
+    # pinecone
+    vs = preprocess_weaviate(text, embedding_model_name)
+    st.success("Preprocessing Weaviate Complete!")
+
+    pinecone_index = preprocess_pinecone(text, embedding_model_name)
+    st.success("Preprocessing Pinecone Complete!")
+    # process weaviate
+
+    # return vs for weaviate
+    #embeddings = vector_store.index.reconstruct_n(0, len(text))
+    #client_url = "https://186e02e2-6d10-4b48-baf1-273a91f6c628.us-east4-0.gcp.cloud.qdrant.io"
+    #client_api_key = "Wc7kgaf6hXuYIHppaAT87CUyVy5pwigwGaI3oufb3r3Xbcwdo9c_jw"
+    #collection_name = "text_vectors"
+    #client = preprocess_qdrant(text, embeddings, client_url, client_api_key, collection_name)
     st.success("Preprocessing Qdrant Complete!")
 
 
-    #pinecone
-    pinecone_index = preprocess_pinecone(text,embedding_model_name)
-    st.success("Preprocessing Pinecone Complete!")
-    #process weaviate
-    vs = preprocess_weaviate(text, embedding_model_name)
-    st.success("Preprocessing Weaviate Complete!")
-    #return vs for weaviate
-    return index, docstore, index_to_docstore_id, vector_store, retriever, client, pinecone_index,embedding_model_global,vs
+
+    return index, docstore, index_to_docstore_id, vector_store, retriever, pinecone_index,embedding_model_global,vs
 
 

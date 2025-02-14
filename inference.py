@@ -1,24 +1,36 @@
 import streamlit as st
-def inference_chroma(chat_model, question,retriever):
+from langchain_core.prompts import ChatPromptTemplate
+
+
+def inference_chroma(chat_model, question, retriever, chat_history):
     from langchain_together import ChatTogether
     from langchain.prompts import PromptTemplate
     from langchain.chains import RetrievalQA
 
+    # Initialize the ChatTogether LLM
     chat_model = ChatTogether(
         together_api_key="c51c9bcaa6bf7fae3ce684206311564828c13fa2e91553f915fee01d517ccee9",
         model=chat_model,
     )
 
+    # Append chat history to the question
+    history_context = "\n".join(
+        [f"{msg['role'].capitalize()}: {msg['content']}" for msg in chat_history]
+    )
+    question_with_history = f"Chat History:\n{history_context}\n\nNew Question:\n{question}"
+
+    # Updated prompt template
     prompt_template = PromptTemplate(
         input_variables=["context", "question"],
         template=(
-            "You are an expert financial advisor. Use the context to answer questions accurately and concisely.\n"
+            "You are an expert financial advisor. Use the context and the appended chat history in the question to answer accurately and concisely.\n\n"
             "Context: {context}\n\n"
-            "Question: {question}\n\n"
+            "{question}\n\n"
             "Answer (be specific and avoid hallucinations):"
-        )
+        ),
     )
 
+    # Create the QA chain
     qa_chain = RetrievalQA.from_chain_type(
         llm=chat_model,
         chain_type="stuff",
@@ -27,87 +39,120 @@ def inference_chroma(chat_model, question,retriever):
         chain_type_kwargs={"prompt": prompt_template},
     )
 
-    llm_response = qa_chain(question)
+    # Call the chain with the combined question and history
+    llm_response = qa_chain(question_with_history)
+
+    # Print and return the result
     print(llm_response['result'])
-    st.write("Answer:", llm_response['result'])
     return llm_response['result']
 
-def inference_faiss(chat_model, question,embedding_model_global,index,docstore):
+
+
+def inference_faiss(chat_model, question, embedding_model_global, index, docstore, chat_history):
     from langchain.chains import LLMChain
     from langchain_together import ChatTogether
     from langchain.prompts import PromptTemplate
     import numpy as np
-    #from langchain.embeddings import SentenceTransformerEmbeddings
-    #embedding_model = SentenceTransformerEmbeddings(model_name=embedding_model_name)
 
-
+    # Initialize ChatTogether LLM
     chat_model = ChatTogether(
         together_api_key="c51c9bcaa6bf7fae3ce684206311564828c13fa2e91553f915fee01d517ccee9",
         model=chat_model,
     )
 
-    prompt_template = PromptTemplate(
-        input_variables=["context", "question"],
-        template=(
-            "You are an expert financial advisor. Use the context to answer questions accurately and concisely.\n"
-            "Context: {context}\n\n"
-            "Question: {question}\n\n"
-            "Answer (be specific and avoid hallucinations):"
-        )
+    # Combine chat history into a formatted string
+    history_context = "\n".join(
+        [f"{msg['role'].capitalize()}: {msg['content']}" for msg in chat_history]
     )
 
+    # Updated PromptTemplate to include chat history
+    prompt_template = PromptTemplate(
+        input_variables=["history", "context", "question"],
+        template=(
+            "You are an expert financial advisor. Use the context and chat history to answer questions accurately and concisely.\n"
+            "Chat History:\n{history}\n\n"
+            "Context:\n{context}\n\n"
+            "Question:\n{question}\n\n"
+            "Answer (be specific and avoid hallucinations):"
+        ),
+    )
+
+    # Create LLM chain
     qa_chain = LLMChain(
         llm=chat_model,
-        prompt=prompt_template
+        prompt=prompt_template,
     )
-    #ADD FAISS PREPROCESSING CODE HERE
 
+    # FAISS preprocessing
     query_embedding = embedding_model_global.embed_query(question)
     D, I = index.search(np.array([query_embedding]), k=1)
 
+    # Retrieve the document
     doc_id = I[0][0]
     document = docstore.search(doc_id)
     context = document.page_content
 
-    answer = qa_chain.run(context=context, question=question, clean_up_tokenization_spaces=False)
+    # Generate the answer using the QA chain
+    answer = qa_chain.run(
+        history=history_context, context=context, question=question, clean_up_tokenization_spaces=False
+    )
     print(answer)
 
-    st.write("Answer:", answer)
+    # Return the answer
+    return answer
 
-def inference_qdrant(chat_model, question,embedding_model_global,client ):
+
+def inference_qdrant(chat_model, question, embedding_model_global, client, chat_history):
     from qdrant_client.http.models import SearchRequest
     from langchain_together import ChatTogether
     import numpy as np
 
-    query_embedding = embedding_model_global.embed_query(question)
+    # Append chat history to the question
+    history_context = "\n".join(
+        [f"{msg['role'].capitalize()}: {msg['content']}" for msg in chat_history]
+    )
+    question_with_history = f"Chat History:\n{history_context}\n\nNew Question:\n{question}"
+
+    # Generate query embedding
+    query_embedding = embedding_model_global.embed_query(question_with_history)
     query_embedding = np.array(query_embedding)
 
+    # Retrieve relevant documents using Qdrant
     search_results = client.search(
         collection_name="text_vectors",
         query_vector=query_embedding,
         limit=2
     )
 
+    # Combine retrieved contexts
     contexts = [result.payload['page_content'] for result in search_results]
     context = "\n".join(contexts)
 
+    # Updated prompt with appended chat history
     prompt = f"""
     You are a helpful assistant. Use the following retrieved documents to answer the question:
+
     Context:
     {context}
-    Question: {question}
+
+    {question_with_history}
+
     Answer:
     """
 
-    llm = ChatTogether(api_key="c51c9bcaa6bf7fae3ce684206311564828c13fa2e91553f915fee01d517ccee9",
-                model=chat_model)
+    # Initialize ChatTogether model
+    llm = ChatTogether(
+        api_key="c51c9bcaa6bf7fae3ce684206311564828c13fa2e91553f915fee01d517ccee9",
+        model=chat_model
+    )
 
+    # Get response from LLM
     response = llm.predict(prompt)
     print(response)
-    #st.write(response)
-    st.write("Answer:", response)
+    return response
 
-def inference_pinecone(chat_model, question,embedding_model_global, pinecone_index):
+
+def inference_pinecone(chat_model, question,embedding_model_global, pinecone_index,chat_history):
   import pinecone
   from pinecone import Pinecone
   from langchain_together import ChatTogether
@@ -137,14 +182,22 @@ def inference_pinecone(chat_model, question,embedding_model_global, pinecone_ind
   # Combine contexts for LLM
   context = "\n".join(contexts)
 
+  formatted_history = "\n".join(
+      [f"{msg['role'].capitalize()}: {msg['content']}" for msg in chat_history]
+  )
+
   # Step 4: Prepare prompt for Together.ai
   prompt = f"""
-  You are a helpful assistant. Use the following retrieved documents to answer the question:
-  Context:
-  {context}
-  Question: {question}
-  Answer:
-  """
+     You are a helpful assistant. Use the following retrieved documents and chat history to answer the question:
+     Chat History:
+     {formatted_history}
+
+     Context:
+     {context}
+
+     Question: {question}
+     Answer:
+     """
   #llm=ChatmodelInstantiate(chat_model)
   llm = ChatTogether(api_key="c51c9bcaa6bf7fae3ce684206311564828c13fa2e91553f915fee01d517ccee9",
                   model=chat_model,  )
@@ -154,49 +207,78 @@ def inference_pinecone(chat_model, question,embedding_model_global, pinecone_ind
   response = llm.predict(prompt)
   print(response)
   #st.write(response)
-  st.write("Answer:",response)
+  #st.write("Answer:",response)
+  return response
 
 
-def inference_weaviate(chat_model, question,vs):
+def inference_weaviate(chat_model, question, vs, chat_history):
     from langchain_together import ChatTogether
+    from langchain.prompts import ChatPromptTemplate
+    from langchain.schema.runnable import RunnablePassthrough
+    from langchain.schema.output_parser import StrOutputParser
+
+    # Initialize the ChatTogether LLM
     chat_model = ChatTogether(
         together_api_key="c51c9bcaa6bf7fae3ce684206311564828c13fa2e91553f915fee01d517ccee9",
         model=chat_model,
     )
-    from langchain.prompts import ChatPromptTemplate
-    template= """You are an expert financial advisor. Use the context to answer questions accurately and concisely:
+
+    # Append chat history to the question
+    history_context = "\n".join(
+        [f"{msg['role'].capitalize()}: {msg['content']}" for msg in chat_history]
+    )
+    question_with_history = f"Chat History:\n{history_context}\n\nNew Question:\n{question}"
+
+    # Updated prompt template
+    template = """
+    You are an expert financial advisor. Use the context and the appended chat history in the question to answer accurately and concisely:
+
     Context:
     {context}
-    Question: {question}
-    Answer(be specific and avoid hallucinations)::
+
+    {question}
+
+    Answer (be specific and avoid hallucinations):
     """
-    prompt=ChatPromptTemplate.from_template(template)
-    from langchain.schema.runnable import RunnablePassthrough
-    from langchain.schema.output_parser import StrOutputParser
-    output_parser=StrOutputParser()
-    retriever=vs.as_retriever()
-    rag_chain=(
-    {"context":retriever,"question":RunnablePassthrough()}
-      |prompt
-      |chat_model
-      |output_parser
+    prompt = ChatPromptTemplate.from_template(template)
+
+    # Output parser for the result
+    output_parser = StrOutputParser()
+
+    # Create retriever
+    retriever = vs.as_retriever()
+
+    # Define the RAG chain
+    rag_chain = (
+            {"context": retriever, "question": RunnablePassthrough()}
+            | prompt
+            | chat_model
+            | output_parser
     )
-    result = rag_chain.invoke(question)
-    st.write("Answer:", result)
+
+    # Invoke the chain with the question containing chat history
+    result = rag_chain.invoke(question_with_history)
+
+    # Return the result
     return result
 
 
-
-def inference(vectordb_name, chat_model, question,retriever,embedding_model_global,index,docstore,client,pinecone_index,vs):
+def inference(vectordb_name, chat_model, question,retriever,embedding_model_global,index,docstore,pinecone_index,vs,chat_history):
     if vectordb_name == "Chroma":
-        inference_chroma(chat_model, question,retriever)
+        answer=inference_chroma(chat_model, question,retriever,chat_history)
+        return answer
     elif vectordb_name == "FAISS":
-        inference_faiss(chat_model, question,embedding_model_global,index,docstore)
+        answer=inference_faiss(chat_model, question,embedding_model_global,index,docstore,chat_history)
+        return answer
     elif vectordb_name == "Qdrant":
-        inference_qdrant(chat_model, question,embedding_model_global,client)
+        answer=inference_qdrant(chat_model, question,embedding_model_global,client,chat_history)
+        return answer
     elif vectordb_name == "Pinecone":
-        inference_pinecone(chat_model, question,embedding_model_global, pinecone_index)
+        answer=inference_pinecone(chat_model, question,embedding_model_global, pinecone_index,chat_history)
+        return answer
     elif vectordb_name == "Weaviate":
-        inference_weaviate(chat_model, question,vs)
+        answer=inference_weaviate(chat_model, question,vs,chat_history)
+        return answer
     else:
         print("Invalid Choice")
+

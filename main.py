@@ -20,21 +20,43 @@ from preprocess import *
 from inference import *
 #!pip install langchain-weaviate
 import streamlit as st
+#from webscrape import *
+import validators
 
 # Main Streamlit App
 st.title("RAG MODEL")
 
 # Use session state to manage the preprocessing_done flag and retriever
+if "button_clicked" not in st.session_state:
+    st.session_state.button_clicked = False
+
 if "preprocessing_done" not in st.session_state:
     st.session_state.preprocessing_done = False
 if "retriever" not in st.session_state:
     st.session_state.retriever = None
 
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
 if not st.session_state.preprocessing_done:
     st.header("Preprocessing")
 
     # User inputs for preprocessing
-    doc_path = st.file_uploader("Upload your Word Document (.docx)", type=["docx"])
+    doc_path = st.file_uploader("Upload your Word Document (.docx)", type=["docx", "pdf"], accept_multiple_files=True)
+
+    st.subheader("Add Links for Web Scraping")
+    links = []  # To store all the links
+    link_count = st.number_input("Number of Links", min_value=0, max_value=50, value=1, step=1)
+
+    # Generate dynamic text inputs for links
+    for i in range(link_count):
+        link = st.text_input(f"Enter Link {i + 1}", key=f"link_{i}")
+        if link:
+            links.append(link)
+            if validators.url(link):  # Validate link format
+                links.append(link)
+            else:
+                st.error(f"Invalid URL format for Link {i + 1}")
 
     embedding_models = [
             "all-MiniLM-L6-v2",
@@ -47,7 +69,7 @@ if not st.session_state.preprocessing_done:
     st.markdown("### Choose an Embedding Model:")
     col1, col2 = st.columns(2)
     selected_embedding_model = st.session_state.get("selected_embedding_model", None)
-    
+
     # Create buttons and highlight selected one
     with col1:
         for model in embedding_models[:len(embedding_models)//2]:
@@ -67,21 +89,23 @@ if not st.session_state.preprocessing_done:
     chunk_overlap = st.number_input("**Enter chunk overlap:**", min_value=1, value=500, step=1)
 
     if st.button("Next"):
-        if doc_path:
+        if doc_path or links:
             with st.spinner("Processing... This may take a while."):
                 try:
                     # Call the preprocess_vectordbs function directly
-                    index, docstore, index_to_docstore_id, vector_store, retriever, client, pinecone_index,embedding_model_global ,vs= preprocess_vectordbs(
-                        doc_path, selected_embedding_model, chunk_size, chunk_overlap
+                    index, docstore, index_to_docstore_id, vector_store, retriever, pinecone_index,embedding_model_global ,vs= preprocess_vectordbs(
+                        doc_path,links, selected_embedding_model, chunk_size, chunk_overlap
                     )
                     st.session_state.preprocessing_done = True  # Persist the flag
                     st.session_state.retriever = retriever
                     st.session_state.index = index
                     st.session_state.docstore = docstore
                     st.session_state.embedding_model_global=embedding_model_global
-                    st.session_state.client=client
+
                     st.session_state.pinecone_index=pinecone_index
                     st.session_state.vs=vs
+                    #st.session_state.client=client
+
                     # Store retriever
                     st.success("Preprocessing Vector DBs Complete! Press Next to Proceed.")
                 except Exception as e:
@@ -131,17 +155,42 @@ else:
     selected_chat_model = st.session_state.get("selected_chat_model", None)
     if selected_chat_model:
         st.markdown(f"*Selected Chat Model:* **{selected_chat_model}**")
-    st.markdown("### Enter your Question:")
-    question = st.text_input("")
+    #st.markdown("### Enter your Question:")
+    #question = st.text_input("")
+###GO to next page here
 
-    if st.button("Run Inference"):
-        if question:
-            with st.spinner("Running inference..."):
-                try:
-                    # Call the inference function directly
-                   inference(selected_vectordb, selected_chat_model, question, st.session_state.retriever,st.session_state.embedding_model_global,st.session_state.index,st.session_state.docstore,st.session_state.client,st.session_state.pinecone_index,st.session_state.vs)
-                    #st.write("Answer:", answer)
-                except Exception as e:
-                    st.error(f"An error occurred: {e}")
-        else:
-            st.warning("Please enter a question to run inference.")
+    if st.button("Run Chatbot Inference"):
+        st.session_state.button_clicked = True
+
+    if st.button("Reset History"):
+        st.session_state.button_clicked = False  # Hide chatbot UI
+        st.session_state.messages = []  # Clear chat history
+
+    if st.session_state.button_clicked:
+            st.title("Chatbot")
+
+            if "messages" not in st.session_state:
+                st.session_state.messages = []
+
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+
+            if prompt := st.chat_input("What is up?"):
+                with st.chat_message("user"):
+                    st.markdown(prompt)
+
+                st.session_state.messages.append({"role": "user", "content": prompt})
+
+                response = inference(selected_vectordb, selected_chat_model, prompt, st.session_state.retriever,
+                                       st.session_state.embedding_model_global, st.session_state.index,
+                                       st.session_state.docstore,
+                                       st.session_state.pinecone_index,
+                                       st.session_state.vs,st.session_state.messages)
+
+                #st.session_state.client
+
+                with st.chat_message("assistant"):
+                    st.markdown(response)
+                st.session_state.messages.append({"role": "assistant", "content": response})
+
