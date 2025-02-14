@@ -35,6 +35,7 @@ def preprocess_text(files, links, size, overlap):
     options.add_argument("--headless")  # Required for Streamlit Cloud
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    #made changes in preprocessing
 
     try:
         service = Service(ChromeDriverManager().install())
