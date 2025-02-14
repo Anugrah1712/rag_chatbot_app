@@ -269,7 +269,10 @@ from langchain.embeddings import SentenceTransformerEmbeddings
 embedding_model_global = None
 
 def preprocess_vectordbs(files,links, embedding_model_name, size, overlap):
+    import sys
+    import pysqlite3
 
+    sys.modules["sqlite3"] = pysqlite3
 
 
     global embedding_model_global  # Declare embedding_model_global as global within the function
