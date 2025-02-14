@@ -1,4 +1,4 @@
-pinecone-client
+
 chromadb
 langchain
 tiktoken
