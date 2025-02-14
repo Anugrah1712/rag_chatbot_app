@@ -20,5 +20,6 @@ langchain-weaviate
 selenium
 PyPDF2
 pysqlite3-binary
+undetected-chromedriver
 
 
