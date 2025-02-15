@@ -1,7 +1,7 @@
 import streamlit as st
 
 
-def preprocess_text(files, size, overlap):
+def preprocess_text(files,links, size, overlap):
     import os
     from PyPDF2 import PdfReader
     from docx import Document as DocxDocument
@@ -33,63 +33,63 @@ def preprocess_text(files, size, overlap):
                     paragraphs.append(paragraph.text)
 
     # Step 2: Process each link using Selenium
-    # service = Service(ChromeDriverManager().install())
-    # driver = webdriver.Chrome(service=service)
-    #
-    # for link in links:
-    #     try:
-    #         driver.get(link)
-    #         time.sleep(3)  # Allow the page to load
-    #         body_text = driver.find_element(By.TAG_NAME, "body").text
-    #         paragraphs.extend(body_text.split("\n"))  # Add the page's text content
-    #
-    #         # Extract FAQs
-    #         try:
-    #             faq_container = driver.find_element(By.CSS_SELECTOR, ".faqs.aem-GridColumn.aem-GridColumn--default--12")
-    #
-    #             # Show more content if the button is available
-    #             while True:
-    #                 try:
-    #                     show_more_button = faq_container.find_element(By.CSS_SELECTOR, ".accordion_toggle_show-more")
-    #                     if show_more_button.is_displayed():
-    #                         show_more_button.click()
-    #                         time.sleep(1)
-    #                     else:
-    #                         break
-    #                 except Exception:
-    #                     break
-    #
-    #             # Extract FAQ questions and answers
-    #             toggle_buttons = faq_container.find_elements(By.CSS_SELECTOR, ".accordion_toggle, .accordion_row")
-    #             all_faqs = []
-    #             for button in toggle_buttons:
-    #                 try:
-    #                     button.click()
-    #                     time.sleep(1)
-    #                     expanded_content = faq_container.find_elements(By.CSS_SELECTOR, ".accordion_body, .accordionbody_links, .aem-rte-content")
-    #                     for content in expanded_content:
-    #                         text = content.text.strip()
-    #                         if text and text not in [faq['answer'] for faq in all_faqs]:
-    #                             question = button.text.strip()
-    #                             if question:
-    #                                 all_faqs.append({"question": question, "answer": text})
-    #
-    #                 except Exception as e:
-    #                     print(f"Error interacting with button: {e}")
-    #
-    #             print("Entire Page Content:")
-    #             print(body_text)
-    #
-    #             print("\nExtracted FAQ Questions and Answers:")
-    #             for i, faq in enumerate(all_faqs, start=1):
-    #                 print(f"Q: {faq['question']}\n   A: {faq['answer']}\n")
-    #
-    #         except Exception as faq_error:
-    #             print(f"FAQ extraction failed for {link}: {faq_error}")
-    #     except Exception as link_error:
-    #         print(f"Failed to process link {link}: {link_error}")
-    #     finally:
-    #         driver.quit()
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service)
+    
+    for link in links:
+        try:
+            driver.get(link)
+            time.sleep(3)  # Allow the page to load
+            body_text = driver.find_element(By.TAG_NAME, "body").text
+            paragraphs.extend(body_text.split("\n"))  # Add the page's text content
+    
+            # Extract FAQs
+            try:
+                faq_container = driver.find_element(By.CSS_SELECTOR, ".faqs.aem-GridColumn.aem-GridColumn--default--12")
+    
+                # Show more content if the button is available
+                while True:
+                    try:
+                        show_more_button = faq_container.find_element(By.CSS_SELECTOR, ".accordion_toggle_show-more")
+                        if show_more_button.is_displayed():
+                            show_more_button.click()
+                            time.sleep(1)
+                        else:
+                            break
+                    except Exception:
+                        break
+    
+                # Extract FAQ questions and answers
+                toggle_buttons = faq_container.find_elements(By.CSS_SELECTOR, ".accordion_toggle, .accordion_row")
+                all_faqs = []
+                for button in toggle_buttons:
+                    try:
+                        button.click()
+                        time.sleep(1)
+                        expanded_content = faq_container.find_elements(By.CSS_SELECTOR, ".accordion_body, .accordionbody_links, .aem-rte-content")
+                        for content in expanded_content:
+                            text = content.text.strip()
+                            if text and text not in [faq['answer'] for faq in all_faqs]:
+                                question = button.text.strip()
+                                if question:
+                                    all_faqs.append({"question": question, "answer": text})
+    
+                    except Exception as e:
+                        print(f"Error interacting with button: {e}")
+    
+                print("Entire Page Content:")
+                print(body_text)
+    
+                print("\nExtracted FAQ Questions and Answers:")
+                for i, faq in enumerate(all_faqs, start=1):
+                    print(f"Q: {faq['question']}\n   A: {faq['answer']}\n")
+    
+            except Exception as faq_error:
+                print(f"FAQ extraction failed for {link}: {faq_error}")
+        except Exception as link_error:
+            print(f"Failed to process link {link}: {link_error}")
+        finally:
+            driver.quit()
 
     # Step 3: Remove empty paragraphs
     paragraphs = [para.strip() for para in paragraphs if para.strip()]
@@ -272,16 +272,16 @@ from langchain.embeddings import SentenceTransformerEmbeddings
 # Declare embedding_model_global as a global variable
 embedding_model_global = None
 
-def preprocess_vectordbs(files, embedding_model_name, size, overlap):
+def preprocess_vectordbs(files,links, embedding_model_name, size, overlap):
     import sys
-    import pysqlite3
+    import sqlite3
 
-    sys.modules["sqlite3"] = pysqlite3
+    sys.modules["sqlite3"] = sqlite3
 
 
     global embedding_model_global  # Declare embedding_model_global as global within the function
 
-    text = preprocess_text(files, size,overlap)
+    text = preprocess_text(files,links, size,overlap)
     st.success("Preprocessing Text Complete!")
     persist_directory = 'db'
     # Assign the model directly, not the model name

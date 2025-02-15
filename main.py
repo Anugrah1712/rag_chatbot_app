@@ -44,8 +44,19 @@ if not st.session_state.preprocessing_done:
     # User inputs for preprocessing
     doc_path = st.file_uploader("Upload your Word Document (.docx)", type=["docx", "pdf"], accept_multiple_files=True)
 
-
-
+    st.subheader("Add Links for Web Scraping")
+    links = []  # To store all the links
+    link_count = st.number_input("Number of Links", min_value=0, max_value=50, value=1, step=1)
+    
+    # Generate dynamic text inputs for links
+    for i in range(link_count):
+        link = st.text_input(f"Enter Link {i+1}", key=f"link_{i}")
+        if link:
+            links.append(link)
+            if validators.url(link):  # Validate link format
+                links.append(link)
+            else:
+                st.error(f"Invalid URL format for Link {i + 1}")
 
 
     embedding_models = [
@@ -84,7 +95,7 @@ if not st.session_state.preprocessing_done:
                 try:
                     # Call the preprocess_vectordbs function directly
                     index, docstore, index_to_docstore_id, vector_store, retriever, pinecone_index,embedding_model_global ,vs= preprocess_vectordbs(
-                        doc_path, selected_embedding_model, chunk_size, chunk_overlap
+                        doc_path, links,selected_embedding_model, chunk_size, chunk_overlap
                     )
                     st.session_state.preprocessing_done = True  # Persist the flag
                     st.session_state.retriever = retriever
