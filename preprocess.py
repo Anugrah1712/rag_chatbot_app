@@ -308,7 +308,7 @@ def preprocess_vectordbs(files,links, embedding_model_name, size, overlap):
     #client_api_key = "Wc7kgaf6hXuYIHppaAT87CUyVy5pwigwGaI3oufb3r3Xbcwdo9c_jw"
     #collection_name = "text_vectors"
     #client = preprocess_qdrant(text, embeddings, client_url, client_api_key, collection_name)
-    st.success("Preprocessing Qdrant Complete!")
+    # st.success("Preprocessing Qdrant Complete!")
 
 
 
