@@ -274,9 +274,9 @@ embedding_model_global = None
 
 def preprocess_vectordbs(files, embedding_model_name, size, overlap):
     import sys
-    import pysqlite3
+    import sqlite3
 
-    sys.modules["sqlite3"] = pysqlite3
+    sys.modules["sqlite3"] = sqlite3
 
 
     global embedding_model_global  # Declare embedding_model_global as global within the function
