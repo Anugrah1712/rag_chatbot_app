@@ -1,6 +1,6 @@
 import streamlit as st
-# import chromadb
-# chromadb.api.client.SharedSystemClient.clear_system_cache()
+import chromadb
+chromadb.api.client.SharedSystemClient.clear_system_cache()
 
 def preprocess_text(files, size, overlap):
     import os
