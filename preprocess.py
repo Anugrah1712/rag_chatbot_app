@@ -38,14 +38,25 @@ def preprocess_text(files,links, size, overlap):
     # Step 2: Process each link using Selenium
     #service = Service(ChromeDriverManager().install())
     #driver = webdriver.Chrome(service=service)
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Run in headless mode
+    # chrome_options.add_argument("--headless=new")  # Updated headless mode
+    # chrome_options.binary_location = "/usr/bin/google-chrome"  # Explicitly set Chrome binary path
+    #
+    # chrome_options = Options()
+    # chrome_options.add_argument("--headless")  # Run in headless mode
+    # chrome_options.add_argument("--disable-gpu")
+    # chrome_options.add_argument("--no-sandbox")
+    # chrome_options.add_argument("--disable-dev-shm-usage")
+    #
+    # driver = webdriver.Chrome(options=chrome_options)
+    import undetected_chromedriver as uc
+
+    chrome_options = uc.ChromeOptions()
+    chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
 
-    driver = webdriver.Chrome(options=chrome_options)
-
+    driver = uc.Chrome(options=chrome_options)
     for link in links:
         try:
             driver.get(link)
