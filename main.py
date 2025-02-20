@@ -96,8 +96,8 @@ if not st.session_state.preprocessing_done:
                 try:
                     # Call the preprocess_vectordbs function directly
                     index, docstore, index_to_docstore_id, vector_store, retriever, pinecone_index,embedding_model_global ,vs= preprocess_vectordbs(
-                        doc_path, selected_embedding_model, chunk_size, chunk_overlap
-                    )
+                        doc_path, selected_embedding_model, chunk_size, chunk_overlap)
+
                     st.session_state.preprocessing_done = True  # Persist the flag
                     st.session_state.retriever = retriever
                     st.session_state.index = index
