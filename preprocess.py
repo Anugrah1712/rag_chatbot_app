@@ -8,6 +8,8 @@ def preprocess_text(files,links, size, overlap):
     from docx import Document as DocxDocument
     from langchain.text_splitter import RecursiveCharacterTextSplitter
     from langchain.docstore.document import Document
+    from selenium.webdriver.chrome.options import Options
+
     from selenium import webdriver
     from selenium.webdriver.chrome.service import Service
     from selenium.webdriver.common.by import By
