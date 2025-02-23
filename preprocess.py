@@ -2,22 +2,20 @@ import streamlit as st
 # import chromadb
 # chromadb.api.client.SharedSystemClient.clear_system_cache()
 
-def preprocess_text(files,links, size, overlap):
+def preprocess_text(files, links, size, overlap):
     import os
+    import time
     from PyPDF2 import PdfReader
     from docx import Document as DocxDocument
     from langchain.text_splitter import RecursiveCharacterTextSplitter
-    from langchain.docstore.document import Document
-    from selenium.webdriver.chrome.options import Options
+    from langchain.docstore.document import Document as LangchainDocument
 
     from selenium import webdriver
     from selenium.webdriver.chrome.service import Service
     from selenium.webdriver.common.by import By
-    from selenium.webdriver.chrome.service import Service
-    from webdriver_manager.chrome import ChromeDriverManager
-    import time
-
-    from langchain.docstore.document import Document as LangchainDocument
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
 
     paragraphs = []
 
@@ -27,102 +25,96 @@ def preprocess_text(files,links, size, overlap):
             reader = PdfReader(file)
             for page in reader.pages:
                 page_text = page.extract_text()
-                if page_text:  # Ensure the page has text
-                    paragraphs.extend(page_text.split("\n"))  # Split by line breaks
+                if page_text:
+                    paragraphs.extend(page_text.split("\n"))
         elif file.name.endswith(".docx"):
             docx = DocxDocument(file)
             for paragraph in docx.paragraphs:
-                if paragraph.text.strip():  # Ensure the paragraph has text
+                if paragraph.text.strip():
                     paragraphs.append(paragraph.text)
 
-    # Step 2: Process each link using Selenium
-    #service = Service(ChromeDriverManager().install())
-    #driver = webdriver.Chrome(service=service)
-    # chrome_options.add_argument("--headless=new")  # Updated headless mode
-    # chrome_options.binary_location = "/usr/bin/google-chrome"  # Explicitly set Chrome binary path
-    #
-    # chrome_options = Options()
-    # chrome_options.add_argument("--headless")  # Run in headless mode
-    # chrome_options.add_argument("--disable-gpu")
-    # chrome_options.add_argument("--no-sandbox")
-    # chrome_options.add_argument("--disable-dev-shm-usage")
-    #
-    # driver = webdriver.Chrome(options=chrome_options)
-    import undetected_chromedriver as uc
-
-    chrome_options = uc.ChromeOptions()
-    chrome_options.add_argument("--headless=new")
-    chrome_options.add_argument("--disable-gpu")
+    # Step 2: Set up Selenium WebDriver for EC2 instance
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36")
 
-    driver = uc.Chrome(options=chrome_options)
-    for link in links:
-        try:
-            driver.get(link)
-            time.sleep(3)  # Allow the page to load
-            body_text = driver.find_element(By.TAG_NAME, "body").text
-            paragraphs.extend(body_text.split("\n"))  # Add the page's text content
-    
-            # Extract FAQs
+    # Ensure correct path to Chromedriver on EC2
+    service = Service("/usr/bin/chromedriver")
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+
+    try:
+        # Step 3: Process each link using Selenium
+        for link in links:
             try:
-                faq_container = driver.find_element(By.CSS_SELECTOR, ".faqs.aem-GridColumn.aem-GridColumn--default--12")
-    
-                # Show more content if the button is available
-                while True:
+                driver.get(link)
+                time.sleep(3)  # Allow page to load
+                body_text = driver.find_element(By.TAG_NAME, "body").text
+                paragraphs.extend(body_text.split("\n"))
+
+                # Extract FAQs
+                try:
+                    wait = WebDriverWait(driver, 10)
+                    faq_container = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".faqs.aem-GridColumn.aem-GridColumn--default--12")))
+
+                    # Click "Show More" button if it exists
                     try:
                         show_more_button = faq_container.find_element(By.CSS_SELECTOR, ".accordion_toggle_show-more")
                         if show_more_button.is_displayed():
                             show_more_button.click()
                             time.sleep(1)
-                        else:
-                            break
                     except Exception:
-                        break
-    
-                # Extract FAQ questions and answers
-                toggle_buttons = faq_container.find_elements(By.CSS_SELECTOR, ".accordion_toggle, .accordion_row")
-                all_faqs = []
-                for button in toggle_buttons:
-                    try:
-                        button.click()
-                        time.sleep(1)
-                        expanded_content = faq_container.find_elements(By.CSS_SELECTOR, ".accordion_body, .accordionbody_links, .aem-rte-content")
-                        for content in expanded_content:
-                            text = content.text.strip()
-                            if text and text not in [faq['answer'] for faq in all_faqs]:
-                                question = button.text.strip()
-                                if question:
-                                    all_faqs.append({"question": question, "answer": text})
-    
-                    except Exception as e:
-                        print(f"Error interacting with button: {e}")
-    
-                print("Entire Page Content:")
-                print(body_text)
-    
-                print("\nExtracted FAQ Questions and Answers:")
-                for i, faq in enumerate(all_faqs, start=1):
-                    print(f"Q: {faq['question']}\n   A: {faq['answer']}\n")
-    
-            except Exception as faq_error:
-                print(f"FAQ extraction failed for {link}: {faq_error}")
-        except Exception as link_error:
-            print(f"Failed to process link {link}: {link_error}")
-        finally:
-            driver.quit()
+                        pass
 
-    # Step 3: Remove empty paragraphs
+                    # Extract FAQ questions and answers
+                    toggle_buttons = faq_container.find_elements(By.CSS_SELECTOR, ".accordion_toggle, .accordion_row")
+                    all_faqs = []
+
+                    for button in toggle_buttons:
+                        try:
+                            button.click()
+                            time.sleep(1)
+                            expanded_content = faq_container.find_elements(By.CSS_SELECTOR, ".accordion_body, .accordionbody_links, .aem-rte-content")
+                            for content in expanded_content:
+                                text = content.text.strip()
+                                if text and text not in [faq['answer'] for faq in all_faqs]:
+                                    question = button.text.strip()
+                                    if question:
+                                        all_faqs.append({"question": question, "answer": text})
+
+                        except Exception as e:
+                            print(f"Error interacting with button: {e}")
+
+                    print("Entire Page Content:")
+                    print(body_text)
+
+                    print("\nExtracted FAQ Questions and Answers:")
+                    for i, faq in enumerate(all_faqs, start=1):
+                        print(f"Q: {faq['question']}\n   A: {faq['answer']}\n")
+
+                except Exception as faq_error:
+                    print(f"FAQ extraction failed for {link}: {faq_error}")
+
+            except Exception as link_error:
+                print(f"Failed to process link {link}: {link_error}")
+
+    finally:
+        driver.quit()
+
+    # Step 4: Remove empty paragraphs
     paragraphs = [para.strip() for para in paragraphs if para.strip()]
 
-    # Step 4: Convert paragraphs to Document objects
+    # Step 5: Convert paragraphs to Document objects
     docs = [LangchainDocument(page_content=para) for para in paragraphs]
 
-    # Step 5: Use RecursiveCharacterTextSplitter for chunking
+    # Step 6: Use RecursiveCharacterTextSplitter for chunking
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=size, chunk_overlap=overlap)
     text_chunks = text_splitter.split_documents(docs)
 
     return text_chunks
+
 
 
 def preprocess_chroma(text, embedding_model_name, persist_directory):
