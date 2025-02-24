@@ -256,8 +256,8 @@ def preprocess_weaviate(text, embedding_model_name):
     import numpy as np
     embedding_model = SentenceTransformerEmbeddings(model_name=embedding_model_name)
     import os
-    os.environ["WEAVIATE_URL"] = "https://jrstxmtsfe1p4sw1imvta.c0.asia-southeast1.gcp.weaviate.cloud/"
-    os.environ["WEAVIATE_API_KEY"] = "YoJvj3julM7BALAdHUjWrXPSkE95HsdxWtHn"
+    os.environ["WEAVIATE_URL"] = "https://pdarzyhgqows9ocn5oava.c0.asia-southeast1.gcp.weaviate.cloud"
+    os.environ["WEAVIATE_API_KEY"] = "u5qU5QbMDcvKw8pPewXXAcmHNvRYNstmOxES"
 
     weaviate_url = os.environ["WEAVIATE_URL"]
     weaviate_api_key = os.environ["WEAVIATE_API_KEY"]
