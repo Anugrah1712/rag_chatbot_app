@@ -3,6 +3,10 @@
 # Exit on error
 set -e
 
+echo "Installing Python dependencies..."
+pip install --upgrade pip
+pip install -r requirements.txt
+
 echo "Downloading Chrome..."
 wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O /tmp/chrome.deb
 
@@ -12,11 +16,7 @@ wget -q https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chrome
 unzip -q /tmp/chromedriver.zip -d /tmp/
 
 echo "Setting up permissions..."
-chmod +x /tmp/chrome.deb
 chmod +x /tmp/chromedriver
 
-echo "Installing Python dependencies..."
-pip install --upgrade pip
-pip install -r requirements.txt
-
-echo "Setup complete!"
+echo "Starting Streamlit..."
+streamlit run main.py --server.port $PORT --server.address 0.0.0.0
