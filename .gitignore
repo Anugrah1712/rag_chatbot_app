@@ -1,3 +1,4 @@
 backend/db/*.bin
 backend/db/*.bin
 backend/db/chroma.sqlite3
+backend/db/*.bin
