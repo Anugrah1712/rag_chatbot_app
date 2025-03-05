@@ -1,0 +1,197 @@
+.chatbot-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+}
+  
+.chat-icon {
+    background-color: purple;
+    color: white;
+    border: none;
+    padding: 15px;
+    border-radius: 50%;
+    font-size: 24px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+  
+.chat-icon:hover {
+    background-color: #6a0dad;
+}
+  
+.chatbox {
+    width: 350px;
+    height: 450px;
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    overflow: hidden;
+}
+  
+.chat-header {
+    background-color: #003366; /* Darker Blue */
+    color: white;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 18px;
+    font-weight: bold;
+}
+  
+.icons {
+    display: flex;
+    gap: 10px;
+}
+  
+.icon {
+    cursor: pointer;
+    color: white;
+}
+  
+.reset-button {
+    background-color: #ff0000;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+}
+  
+.reset-button:hover {
+    background-color: #cc0000;
+}
+  
+.chat-body {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+  
+.bot-message {
+    background-color: #f5f5dc; /* Beige */
+    color: black;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    align-self: flex-start;
+}
+  
+.user-message {
+    background-color: #0078ff;
+    color: white;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    align-self: flex-end;
+}
+  
+.chat-input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ccc;  /* Add a border */
+    font-size: 16px;
+    outline: none;
+    border-radius: 5px;
+    background-color: white;  /* Ensure it's visible */
+    color: black;  /* Text should be visible */
+}
+
+  
+.chat-input {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    font-size: 16px;
+    outline: none;
+}
+  
+.send-button {
+    background-color: #003366; /* Same as header */
+    color: white;
+    border: none;
+    padding: 10px 15px; /* Adjusted padding */
+    cursor: pointer;
+    border-radius: 5px;
+    margin-left: 5px;
+    font-size: 14px; /* Reduce size */
+    height: 40px; /* Match input height */
+}
+
+  
+.send-button:hover {
+    background-color: #002244;
+}
+  
+.admin-modal {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+}
+  
+.developer-console {
+    padding: 15px;
+    background-color: #f5f5f5;
+    margin-top: 10px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* after entering the correct admin key the developer console should open in a new page where the developer can upload multiple pdf or docs , multiple urls for webscraping , choice of embedding model     embedding_models = [
+            "all-MiniLM-L6-v2",
+            "paraphrase-MiniLM-L6-v2",
+            "distilbert-base-nli-stsb-mean-tokens",
+            "all-distilroberta-v1",
+            "paraphrase-distilroberta-base-v1",
+            "stsb-roberta-base",
+        ]
+            ask for chunk size , chunk overlap , 
+            
+            after this preprocessing will happen at the backend 
+            
+            then after preprocessing choice of vector dbs should appear vectordb_names = ["Pinecone", "Chroma", "FAISS", "Qdrant", "Weaviate"]
+
+
+            then it will ask for to select chat models out of 
+                chat_models = [
+                     "Qwen/QwQ-32B-Preview",
+                     "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                     "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
+                     "scb10x/scb10x-llama3-typhoon-v1-5-8b-instruct",
+                     "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+
+
+
+
+                     after this there will be a button which will say run chatbot inference 
+                     on clicking that developer will come back to chat bot and now the chat bot is ready to use and now it should provide the correct answers for user queries 
+    ]
+            */

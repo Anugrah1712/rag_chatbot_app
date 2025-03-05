@@ -1,0 +1,98 @@
+/* Apply same styling as Home Page */
+body {
+    font-family: "Poppins", sans-serif;
+    background-color: #f4f7fc;
+    color: #333;
+    margin: 0;
+    padding: 0;
+  }
+  
+  /* Center the Developer Console */
+  .developer-console {
+    max-width: 700px;
+    margin: 50px auto;
+    padding: 30px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Headings */
+  h2 {
+    text-align: center;
+    font-size: 26px;
+    color: #007bff;
+    margin-bottom: 20px;
+  }
+  
+  /* Form sections */
+  .section {
+    margin-bottom: 20px;
+  }
+  
+  label {
+    font-size: 16px;
+    font-weight: 500;
+    color: #333;
+    display: block;
+    margin-bottom: 8px;
+  }
+  
+  /* Input Fields */
+  input, select {
+    width: 100%;
+    padding: 10px;
+    font-size: 14px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #f9f9f9;
+    transition: border 0.3s ease-in-out;
+  }
+  
+  input:focus, select:focus {
+    border: 1px solid #007bff;
+    outline: none;
+  }
+  
+  /* Buttons */
+  button {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+    background: #007bff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease-in-out;
+    margin-top: 10px;
+  }
+  
+  button:hover {
+    background: #0056b3;
+  }
+  
+  /* Add More URL Button */
+  .add-url-btn {
+    background: #28a745;
+  }
+  
+  .add-url-btn:hover {
+    background: #218838;
+  }
+  
+  /* Disabled Button */
+  button:disabled {
+    background: gray;
+    cursor: not-allowed;
+  }
+  
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    .developer-console {
+      width: 90%;
+      padding: 20px;
+    }
+  }
+  
