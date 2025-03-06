@@ -2,7 +2,7 @@ from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends
 from typing import List
 from preprocess import preprocess_vectordbs
 from inference import inference
-from webscrape import scrape_web_data
+#from webscrape import scrape_web_data
 import validators
 import uvicorn
 import json
@@ -56,7 +56,7 @@ async def preprocess(
 
         # Process documents
         try:
-            index, docstore, index_to_docstore_id, vector_store, retriever, pinecone_index, embedding_model_global, vs = preprocess_vectordbs(
+            index, docstore, index_to_docstore_id, vector_store, retriever, pinecone_index, embedding_model_global, vs = await preprocess_vectordbs(
                 doc_files, links_list, embedding_model, chunk_size, chunk_overlap
             )
 
