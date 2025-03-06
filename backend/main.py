@@ -1,167 +1,144 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, Form, File
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Optional
-import logging
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends
+from typing import List
 from preprocess import preprocess_vectordbs
-from webscrape import scrape_data  # Import web scraping function
 from inference import inference
+from webscrape import scrape_web_data
+import validators
+import uvicorn
+import json
 
 app = FastAPI()
 
-# Enable CORS to allow frontend communication
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Change this to your frontend URL in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-
-# Store chatbot configurations
-configurations = {
-    "embedding_model": None,
-    "vector_database": None,
-    "chat_model": None,
-    "chunk_size": None,
-    "chunk_overlap": None,
-    "documents": [],
-    "web_links": [],
+# Store session state
+session_state = {
     "retriever": None,
+    "preprocessing_done": False,
     "index": None,
     "docstore": None,
+    "embedding_model_global": None,
     "pinecone_index": None,
     "vs": None,
+    "selected_vectordb": None,
+    "selected_chat_model": None,
     "messages": []
 }
 
-# Define Pydantic model for configurations
-class ConfigRequest(BaseModel):
-    embedding_model: Optional[str]
-    chat_model: Optional[str]
-    vector_database: Optional[str]
-    chunk_size: Optional[int]
-    chunk_overlap: Optional[int]
-    web_links: Optional[List[str]]
-
-@app.post("/api/setup_chatbot")
-async def setup_chatbot(config: ConfigRequest, background_tasks: BackgroundTasks):
-    """Receive configurations from Developer Console and trigger preprocessing."""
-    configurations.update(config.dict(exclude_unset=True))
-
-    if configurations["documents"] or configurations["web_links"]:
-        background_tasks.add_task(preprocess_data)
-
-    return {"message": "Chatbot setup successful", "configurations": configurations}
-
-@app.post("/api/set_config")
-async def set_config(
+@app.post("/preprocess")
+async def preprocess(
+    doc_files: List[UploadFile] = File(...),
+    links: str = Form(...),
     embedding_model: str = Form(...),
-    chat_model: str = Form(...),
-    vector_database: str = Form(...),
     chunk_size: int = Form(...),
-    chunk_overlap: int = Form(...),
-    web_links: Optional[List[str]] = Form(None),
-    documents: List[UploadFile] = File(None),
-    background_tasks: BackgroundTasks = BackgroundTasks()
+    chunk_overlap: int = Form(...)
 ):
-    """Handle configuration updates from frontend and process uploaded files."""
+    """ Preprocessing: Handle document uploads and web scraping """
+    
     try:
-        configurations["embedding_model"] = embedding_model
-        configurations["chat_model"] = chat_model
-        configurations["vector_database"] = vector_database
-        configurations["chunk_size"] = chunk_size
-        configurations["chunk_overlap"] = chunk_overlap
-        configurations["web_links"] = web_links if web_links else []
+        print("\n🔍 Preprocessing Started...")
+        print(f"📂 Received {len(doc_files)} document(s)")
+        print(f"🔗 Links received: {links}")
+        print(f"📊 Embedding Model: {embedding_model}")
+        print(f"🔢 Chunk Size: {chunk_size}, Chunk Overlap: {chunk_overlap}")
 
-        # Store actual file content instead of just filenames
-        if documents:
-            configurations["documents"] = [
-                {"filename": doc.filename, "content": await doc.read()} for doc in documents
-            ]
+        # Validate links
+        links_list = json.loads(links)
+        for link in links_list:
+            if not validators.url(link):
+                raise HTTPException(status_code=400, detail=f"❌ Invalid URL: {link}")
 
-        logging.info("Configurations updated: %s", configurations)
+        # Validate uploaded files
+        if not doc_files:
+            raise HTTPException(status_code=400, detail="❌ No documents uploaded!")
 
-        if configurations["documents"] or configurations["web_links"]:
-            background_tasks.add_task(preprocess_data)
+        for file in doc_files:
+            if file.filename == "":
+                raise HTTPException(status_code=400, detail="❌ One of the uploaded files is empty!")
 
-        return {"message": "Configuration updated successfully", "configurations": configurations}
+        # Process documents
+        try:
+            index, docstore, index_to_docstore_id, vector_store, retriever, pinecone_index, embedding_model_global, vs = preprocess_vectordbs(
+                doc_files, links_list, embedding_model, chunk_size, chunk_overlap
+            )
+
+            # Update session state
+            session_state.update({
+                "retriever": retriever,
+                "preprocessing_done": True,
+                "index": index,
+                "docstore": docstore,
+                "embedding_model_global": embedding_model_global,
+                "pinecone_index": pinecone_index,
+                "vs": vs
+            })
+
+            print("✅ Preprocessing completed successfully!\n")
+            return {"message": "Preprocessing completed successfully!"}
+
+        except Exception as e:
+            print(f"❌ Error in preprocess_vectordbs: {str(e)}\n")
+            raise HTTPException(status_code=500, detail=f"Preprocessing failed: {str(e)}")
 
     except Exception as e:
-        logging.error(f"Error in set_config: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"❌ Unexpected Error: {str(e)}\n")
+        raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
 
-@app.get("/api/get_config")
-async def get_config():
-    """Fetch the current chatbot configurations."""
-    return configurations
+@app.post("/select_vectordb")
+async def select_vectordb(vectordb: str = Form(...)):
+    """ Set selected vector database """
+    session_state["selected_vectordb"] = vectordb
+    print(f"✅ Selected Vector Database: {vectordb}\n")
+    return {"message": f"Selected Vector Database: {vectordb}"}
 
-def preprocess_data():
-    """Run preprocessing with the latest configurations."""
+@app.post("/select_chat_model")
+async def select_chat_model(chat_model: str = Form(...)):
+    """ Set selected chat model """
+    session_state["selected_chat_model"] = chat_model
+    print(f"✅ Selected Chat Model: {chat_model}\n")
+    return {"message": f"Selected Chat Model: {chat_model}"}
+
+@app.post("/chat")
+async def chat_with_bot(prompt: str = Form(...)):
+    """ Chatbot interaction """
+    if not session_state["preprocessing_done"]:
+        raise HTTPException(status_code=400, detail="❌ Preprocessing must be completed before inferencing.")
+
+    if not session_state["selected_vectordb"] or not session_state["selected_chat_model"]:
+        raise HTTPException(status_code=400, detail="❌ Please select both a vector database and a chat model before chatting.")
+
+    # Store user message
+    session_state["messages"].append({"role": "user", "content": prompt})
+
+    # Run inference
     try:
-        logging.info("Starting Preprocessing...")
-
-        # Extract document contents
-        document_contents = [doc["content"].decode("utf-8") for doc in configurations["documents"]]
-
-        # Scrape web links
-        scraped_data = []
-        if configurations["web_links"]:
-            logging.info("Scraping web links...")
-            scraped_data = scrape_web_links(configurations["web_links"])
-            logging.info("Web scraping completed.")
-
-        # Combine document contents and scraped data
-        all_texts = document_contents + scraped_data
-
-        (
-            index, docstore, _, vector_store, retriever,
-            pinecone_index, embedding_model_global, vs
-        ) = preprocess_vectordbs(
-            all_texts,  # Pass combined text data
-            configurations["embedding_model"],
-            configurations["chunk_size"],
-            configurations["chunk_overlap"]
+        response = inference(
+            session_state["selected_vectordb"],
+            session_state["selected_chat_model"],
+            prompt,
+            session_state["retriever"],
+            session_state["embedding_model_global"],
+            session_state["index"],
+            session_state["docstore"],
+            session_state["pinecone_index"],
+            session_state["vs"],
+            session_state["messages"]
         )
 
-        # Store processed components
-        configurations["retriever"] = retriever
-        configurations["index"] = index
-        configurations["docstore"] = docstore
-        configurations["pinecone_index"] = pinecone_index
-        configurations["vs"] = vs
+        # Store assistant response
+        session_state["messages"].append({"role": "assistant", "content": response})
 
-        logging.info("Preprocessing completed successfully!")
+        print(f"🤖 Chatbot Response: {response}\n")
+        return {"response": response}
 
     except Exception as e:
-        logging.error(f"Error during preprocessing: {e}")
+        print(f"❌ Error in inference: {str(e)}\n")
+        raise HTTPException(status_code=500, detail=f"Inference Error: {str(e)}")
 
-class ChatQuery(BaseModel):
-    user_input: str
+@app.post("/reset")
+async def reset_chat():
+    """ Reset chatbot history """
+    session_state["messages"] = []
+    print("🔄 Chat history reset.\n")
+    return {"message": "Chat history reset."}
 
-@app.post("/api/chat")
-async def chat_with_bot(query: ChatQuery):
-    """Process user queries using the selected models."""
-    if not configurations["chat_model"] or not configurations["retriever"]:
-        raise HTTPException(status_code=400, detail="Configuration is incomplete!")
-
-    response = inference(
-        configurations["vector_database"],
-        configurations["chat_model"],
-        query.user_input,
-        configurations["retriever"],
-        configurations["embedding_model"],
-        configurations["index"],
-        configurations["docstore"],
-        configurations["pinecone_index"],
-        configurations["vs"],
-        configurations["messages"]
-    )
-
-    configurations["messages"].append({"role": "user", "content": query.user_input})
-    configurations["messages"].append({"role": "assistant", "content": response})
-
-    return {"response": response}
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
