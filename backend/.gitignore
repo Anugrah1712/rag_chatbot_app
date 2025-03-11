@@ -6,5 +6,7 @@ __pycache__/
 *.pyc
 
 # Ignore frontend build files if needed
-frontend/my-chatbot-app/
-
+.DS_Store
+backend/.env
+backend/db/
+frontend/
