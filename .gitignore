@@ -2,3 +2,4 @@ backend/db/*.bin
 backend/db/*.bin
 backend/db/chroma.sqlite3
 backend/db/*.bin
+backend/db/58db74fc-75ec-4e4d-898e-2189d757062c/data_level0.bin
