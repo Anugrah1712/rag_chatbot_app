@@ -8,31 +8,38 @@ import asyncio
 from playwright.async_api import async_playwright
 import os 
 from dotenv import load_dotenv
+from io import BytesIO
 
 # Load environment variables from .env file
 load_dotenv()
 
 
-async def preprocess_text(files: list[UploadFile], links, size, overlap):
+async def preprocess_text(files: list[UploadFile], scraped_data, size, overlap):
     import time
     
     paragraphs = []
-
+    from io import BytesIO
     # Step 1: Process each file
     for file in files:
         if file.filename.endswith(".pdf"):
-            await file.seek(0)
-            reader = PdfReader(file.file)
-            for page in reader.pages:
+            contents = await file.read()
+            file_object = BytesIO(contents)
+            reader = PdfReader(file_object)
+            for i, page in enumerate(reader.pages):
                 page_text = page.extract_text()
                 if page_text:
-                    paragraphs.extend(page_text.split("\n"))
+                    cleaned_text = ' '.join(page_text.split())
+                    paragraphs.append(cleaned_text)
         elif file.filename.endswith(".docx"):
-            await file.seek(0)
-            docx = DocxDocument(file.file)
-            for paragraph in docx.paragraphs:
-                if paragraph.text.strip():
-                    paragraphs.append(paragraph.text)
+            
+            file_content = await file.read() 
+            docx_stream = BytesIO(file_content) 
+            docx = DocxDocument(docx_stream)
+            full_text = ""
+            for para in docx.paragraphs:
+                if para.text.strip():
+                    full_text += para.text.strip() + "\n\n"
+            paragraphs.append(full_text)
 
         # Step 2: Use Playwright for web scraping
         # async with async_playwright() as p:
@@ -52,14 +59,15 @@ async def preprocess_text(files: list[UploadFile], links, size, overlap):
 
         #     await browser.close()  # <-- Await browser close
 
+    if scraped_data:
+        print(f"✅ Adding {len(scraped_data)} scraped web pages to preprocessing.")
+        paragraphs.extend(scraped_data)
 
-    # Step 3: Remove empty paragraphs
     paragraphs = [para.strip() for para in paragraphs if para.strip()]
+    print(paragraphs)
 
-    # Step 4: Convert paragraphs to Document objects
     docs = [LangchainDocument(page_content=para) for para in paragraphs]
 
-    # Step 5: Use RecursiveCharacterTextSplitter for chunking
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=size, chunk_overlap=overlap)
     text_chunks = text_splitter.split_documents(docs)
 
@@ -134,6 +142,7 @@ def preprocess_weaviate(text, embedding_model_name):
 
 def preprocess_pinecone(text, embedding_model_name):
     import numpy as np
+    import time
     from langchain_community.embeddings import SentenceTransformerEmbeddings
     from pinecone import Pinecone, ServerlessSpec
     import uuid
@@ -164,14 +173,14 @@ def preprocess_pinecone(text, embedding_model_name):
 
     pinecone_index = pinecone.Index(index_name)
 
-    upsert_data = [(str(uuid.uuid4()), embeddings[i], {"text": texts[i]}) for i in range(len(texts))]
-
-    batch_size = 100  
+    upsert_data = []
+    for i in range(len(texts)):
+        upsert_data.append((str(uuid.uuid4()), embeddings[i], {"text": texts[i]}))
+    batch_size = 100
     for i in range(0, len(upsert_data), batch_size):
-        batch = upsert_data[i: i + batch_size]
+        batch = upsert_data[i:i + batch_size]
         pinecone_index.upsert(vectors=batch)
-
-    
+        time.sleep(0.5)
     return pinecone_index
 
 from langchain_community.embeddings import SentenceTransformerEmbeddings
@@ -183,12 +192,13 @@ sys.modules["sqlite3"] = sqlite3
 
 embedding_model_global = None
 
-async def preprocess_vectordbs(files: list[UploadFile], links, embedding_model_name, size, overlap):
+async def preprocess_vectordbs(files: list[UploadFile], scraped_data, embedding_model_name, size, overlap):
     global embedding_model_global
 
     from preprocess import preprocess_text, preprocess_chroma, preprocess_faiss, preprocess_weaviate, preprocess_pinecone
 
-    text = await preprocess_text(files, links, size, overlap)
+    text = await preprocess_text(files, scraped_data, size, overlap)
+    print(text)
     persist_directory = 'db'
 
     embedding_model_global = SentenceTransformerEmbeddings(model_name=embedding_model_name)

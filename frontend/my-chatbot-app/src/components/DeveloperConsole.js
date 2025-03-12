@@ -6,7 +6,7 @@ const DeveloperConsole = ({ closeConsole, openChatbot }) => {
   // State variables
   const [documents, setDocuments] = useState([]);
   const [urls, setUrls] = useState([""]);
-  const [chunkSize, setChunkSize] = useState(2000);
+  const [chunkSize, setChunkSize] = useState(1500);
   const [chunkOverlap, setChunkOverlap] = useState(500);
   const [selectedEmbeddingModel, setSelectedEmbeddingModel] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);

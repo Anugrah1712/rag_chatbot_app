@@ -71,7 +71,7 @@ async def preprocess(
         if links_list:
             try:
                 print("🌐 Scraping web data...")
-                await scrape_web_data(links_list)
+                scraped_data = await scrape_web_data(links_list)
                 print("✅ Web scraping completed!\n")
             except Exception as e:
                 print(f"❌ Web scraping failed: {str(e)}\n")
@@ -80,7 +80,7 @@ async def preprocess(
         # Process documents
         try:
             index, docstore, index_to_docstore_id, vector_store, retriever, pinecone_index, embedding_model_global, vs = await preprocess_vectordbs(
-                doc_files, links_list, embedding_model, chunk_size, chunk_overlap
+                doc_files, scraped_data , embedding_model, chunk_size, chunk_overlap
             )
 
             # Update session state
