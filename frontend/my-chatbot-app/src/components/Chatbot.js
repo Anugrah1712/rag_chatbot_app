@@ -1,4 +1,3 @@
-// Chatbot.js
 import React, { useState, useEffect, useRef } from "react";
 import "./Chatbot.css";
 import "./DeveloperConsole.css";
@@ -6,6 +5,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import SettingsIcon from "@mui/icons-material/Settings";
 import DeveloperConsole from "./DeveloperConsole";
 import SendIcon from "@mui/icons-material/Send";
+import RestoreIcon from "@mui/icons-material/Restore"; // Import Reset Icon
 
 function Chatbot() {
   const [isOpen, setIsOpen] = useState(false);
@@ -42,6 +42,14 @@ function Chatbot() {
   // Handle settings button click
   const handleSettingsClick = () => {
     setShowSettings(true);
+  };
+
+  // Reset chat history
+  const handleResetHistory = () => {
+    setMessages([
+      { text: "Hello! 👋", sender: "bot" },
+      { text: "How can I help you today?", sender: "bot" },
+    ]);
   };
 
   // Handle admin key verification
@@ -96,6 +104,7 @@ function Chatbot() {
           <div className="chat-header">
             <span>AI Chat Assistant</span>
             <div className="icons">
+              <RestoreIcon className="icon" onClick={handleResetHistory} titleAccess="Reset Chat History" />
               <SettingsIcon className="icon" onClick={handleSettingsClick} />
               <CloseIcon className="icon" onClick={toggleChatbot} />
             </div>
