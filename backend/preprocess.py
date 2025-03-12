@@ -64,7 +64,7 @@ async def preprocess_text(files: list[UploadFile], scraped_data, size, overlap):
         paragraphs.extend(scraped_data)
 
     paragraphs = [para.strip() for para in paragraphs if para.strip()]
-    print(paragraphs)
+    # print(paragraphs)
 
     docs = [LangchainDocument(page_content=para) for para in paragraphs]
 
