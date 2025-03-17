@@ -106,82 +106,84 @@ def preprocess_faiss(text, embedding_model_name):
     index_to_docstore_id = {i: i for i in range(len(texts))}
 
     vector_store = FAISS(
-        index=index,
-        docstore=docstore,
-        index_to_docstore_id=index_to_docstore_id,
-        embedding_function=embedding_model.embed_query
-    )
+    index=index,
+    docstore=docstore,
+    index_to_docstore_id=index_to_docstore_id,
+    embedding_function=embedding_model.embed_query 
+)
+    vector_store.save_local("faiss_index")  # ✅ Save FAISS index before returning
    
     return index, docstore, index_to_docstore_id, vector_store
 
-def preprocess_weaviate(text, embedding_model_name):
-    from langchain_community.embeddings import SentenceTransformerEmbeddings
-    import os
-    import weaviate
-    from weaviate.auth import AuthApiKey
-    from langchain_weaviate.vectorstores import WeaviateVectorStore
+# def preprocess_weaviate(text, embedding_model_name):
+#     from langchain_community.embeddings import SentenceTransformerEmbeddings
+#     import os
+#     import weaviate
+#     from weaviate.auth import AuthApiKey
+#     from langchain_weaviate.vectorstores import WeaviateVectorStore
 
-    embedding_model = SentenceTransformerEmbeddings(model_name=embedding_model_name)
+#     embedding_model = SentenceTransformerEmbeddings(model_name=embedding_model_name)
 
-    weaviate_url = os.getenv("WEAVIATE_URL")
-    weaviate_api_key = os.getenv("WEAVIATE_API_KEY")
+#     weaviate_url = os.getenv("WEAVIATE_URL")
+#     weaviate_api_key = os.getenv("WEAVIATE_API_KEY")
 
 
-    client = weaviate.connect_to_weaviate_cloud(
-        cluster_url=weaviate_url,
-        auth_credentials=AuthApiKey(weaviate_api_key),
-    )
+#     client = weaviate.connect_to_weaviate_cloud(
+#         cluster_url=weaviate_url,
+#         auth_credentials=AuthApiKey(weaviate_api_key),
+#     )
 
-    vs = WeaviateVectorStore.from_documents(
-        documents=text,
-        embedding=embedding_model,
-        client=client
-    )
+#     vs = WeaviateVectorStore.from_documents(
+#         documents=text,
+#         embedding=embedding_model,
+#         client=client
+#     )
    
-    return vs
+#     return vs
 
-def preprocess_pinecone(text, embedding_model_name):
-    import numpy as np
-    import time
-    from langchain_community.embeddings import SentenceTransformerEmbeddings
-    from pinecone import Pinecone, ServerlessSpec
-    import uuid
+# def preprocess_pinecone(text, embedding_model_name):
+#     import numpy as np
+#     import time
+#     from langchain_community.embeddings import SentenceTransformerEmbeddings
+#     from pinecone import Pinecone, ServerlessSpec
+#     import uuid
 
-    embedding_model = SentenceTransformerEmbeddings(model_name=embedding_model_name)
-    texts = [doc.page_content for doc in text]
-    embeddings = embedding_model.embed_documents(texts)
-    embeddings = np.array(embeddings).tolist()
+#     embedding_model = SentenceTransformerEmbeddings(model_name=embedding_model_name)
+#     texts = [doc.page_content for doc in text]
+#     embeddings = embedding_model.embed_documents(texts)
+#     embeddings = np.array(embeddings).tolist()
 
-    pinecone = Pinecone(
-        api_key="pcsk_42Yw14_EaKdaMLiAJfWub3s2sEJYPW3jyXXjdCYkH8Mh8rD8wWJ3pS6oCCC9PGqBNuDTuf",
-        environment="us-east-1"
-    )
+#     pinecone = Pinecone(
+#         api_key="pcsk_42Yw14_EaKdaMLiAJfWub3s2sEJYPW3jyXXjdCYkH8Mh8rD8wWJ3pS6oCCC9PGqBNuDTuf",
+#         environment="us-east-1"
+#     )
 
-    index_name = "test5"
-    indexes = pinecone.list_indexes().names()
+#     index_name = "test5"
+#     indexes = pinecone.list_indexes().names()
 
-    if index_name in indexes:
-        pinecone.delete_index(index_name)
+#     if index_name in indexes:
+#         pinecone.delete_index(index_name)
 
-    pinecone.create_index(
-        name=index_name,
-        dimension=len(embeddings[0]),
-        metric="cosine",
-        spec=ServerlessSpec(cloud="aws", region="us-east-1"),
-        deletion_protection="disabled"
-    )
+#     pinecone.create_index(
+#         name=index_name,
+#         dimension=len(embeddings[0]),
+#         metric="cosine",
+#         spec=ServerlessSpec(cloud="aws", region="us-east-1"),
+#         deletion_protection="disabled"
+#     )
 
-    pinecone_index = pinecone.Index(index_name)
+#     # Reinitialize Pinecone index dynamically (not saving object)
+#     pinecone_index = pinecone.Index(index_name)
 
-    upsert_data = []
-    for i in range(len(texts)):
-        upsert_data.append((str(uuid.uuid4()), embeddings[i], {"text": texts[i]}))
-    batch_size = 100
-    for i in range(0, len(upsert_data), batch_size):
-        batch = upsert_data[i:i + batch_size]
-        pinecone_index.upsert(vectors=batch)
-        time.sleep(0.5)
-    return pinecone_index
+#     # Upload embeddings in batches
+#     upsert_data = [(str(uuid.uuid4()), embeddings[i], {"text": texts[i]}) for i in range(len(texts))]
+#     batch_size = 100
+#     for i in range(0, len(upsert_data), batch_size):
+#         pinecone_index.upsert(vectors=upsert_data[i:i + batch_size])
+#         time.sleep(0.5)
+
+#     return index_name  # ✅ Return only index_name, not the index object
+
 
 from langchain_community.embeddings import SentenceTransformerEmbeddings
 from fastapi import UploadFile
@@ -195,10 +197,7 @@ embedding_model_global = None
 async def preprocess_vectordbs(files: list[UploadFile], scraped_data, embedding_model_name, size, overlap):
     global embedding_model_global
 
-    from preprocess import preprocess_text, preprocess_chroma, preprocess_faiss, preprocess_weaviate, preprocess_pinecone
-
     text = await preprocess_text(files, scraped_data, size, overlap)
-    print(text)
     persist_directory = 'db'
 
     embedding_model_global = SentenceTransformerEmbeddings(model_name=embedding_model_name)
@@ -209,12 +208,5 @@ async def preprocess_vectordbs(files: list[UploadFile], scraped_data, embedding_
     print("Processing FAISS...")
     index, docstore, index_to_docstore_id, vector_store = preprocess_faiss(text, embedding_model_name)
     
-    print("Processing Weaviate...")
-    vs = preprocess_weaviate(text, embedding_model_name)
-    print("Weaviate result:", type(vs))
 
-    print("Processing Pinecone...")
-    pinecone_index = preprocess_pinecone(text, embedding_model_name)
-    print("Pinecone result:", type(pinecone_index))
-
-    return index, docstore, index_to_docstore_id, vector_store, retriever, pinecone_index, embedding_model_global, vs
+    return index, docstore, index_to_docstore_id, vector_store, retriever, embedding_model_global

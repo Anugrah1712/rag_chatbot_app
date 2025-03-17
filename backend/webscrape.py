@@ -4,6 +4,8 @@ import asyncio
 from playwright.async_api import async_playwright
 import google.generativeai as genai
 from dotenv import load_dotenv
+import os 
+import pickle
 
 # Load environment variables from .env file
 load_dotenv()
@@ -11,6 +13,9 @@ load_dotenv()
 # Configure Gemini API
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
+
+# Pickle file path for storing scraped data
+WEB_SCRAPE_PICKLE = "scraped_data.pkl"
 
 generation_config = {
     "temperature": 1,
@@ -38,7 +43,16 @@ async def convert_table_to_sentences_gemini(tables):
     return response.text if response else "No response from Gemini API"
 
 async def scrape_web_data(links):
+    
+    # Check if the data is already saved in pickle
+    if os.path.exists(WEB_SCRAPE_PICKLE):
+        with open(WEB_SCRAPE_PICKLE, "rb") as f:
+            scraped_data = pickle.load(f)
+            print("✅ Loaded saved scraped data from cache!")
+            return scraped_data
+
     print("[INFO] Starting web scraping...\n")
+    scraped_data = []
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)  # Set headless=True for better performance
@@ -129,11 +143,19 @@ async def scrape_web_data(links):
         await browser.close()
         print("\n[INFO] Web scraping completed!\n")
 
+    # Save scraped data to pickle
+    with open(WEB_SCRAPE_PICKLE, "wb") as f:
+        pickle.dump(scraped_data, f)
+        print("💾 Scraped data saved to cache!")
+
+    return scraped_data
+
 # Run the scraper
 import asyncio
 
 async def main():
-    await scrape_web_data()
+    scraped_data = await scrape_web_data()
+    print("\nScraped Data:\n", scraped_data)
 
 if __name__ == "__main__":
     asyncio.run(main())

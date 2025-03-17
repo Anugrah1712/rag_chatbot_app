@@ -10,6 +10,8 @@ import uvicorn
 import json
 import asyncio
 from fastapi.middleware.cors import CORSMiddleware
+import os 
+import pickle 
 
 app = FastAPI()
 
@@ -22,19 +24,27 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# Store session state
-session_state = {
-    "retriever": None,
-    "preprocessing_done": False,
-    "index": None,
-    "docstore": None,
-    "embedding_model_global": None,
-    "pinecone_index": None,
-    "vs": None,
-    "selected_vectordb": None,
-    "selected_chat_model": None,
-    "messages": []
-}
+# File path for saved session state
+PICKLE_FILE_PATH = "session_state.pkl"
+
+# Load previous session if exists
+if os.path.exists(PICKLE_FILE_PATH):
+    with open(PICKLE_FILE_PATH, "rb") as f:
+        session_state = pickle.load(f)
+        print("✅ Loaded saved session state!")
+else:
+    session_state = {
+        "retriever": None,
+        "preprocessing_done": False,
+        "index": None,
+        "docstore": None,
+        "embedding_model_global": None,
+        # "pinecone_index": None,
+        # "vs": None,
+        "selected_vectordb": "FAISS",
+        "selected_chat_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "messages": []
+    }
 
 @app.post("/preprocess")
 async def preprocess(
@@ -79,22 +89,31 @@ async def preprocess(
 
         # Process documents
         try:
-            index, docstore, index_to_docstore_id, vector_store, retriever, pinecone_index, embedding_model_global, vs = await preprocess_vectordbs(
+            index, docstore, index_to_docstore_id, vector_store, retriever, embedding_model_global = await preprocess_vectordbs(
                 doc_files, scraped_data , embedding_model, chunk_size, chunk_overlap
             )
 
-            # Update session state
+         # Update session state
             session_state.update({
                 "retriever": retriever,
                 "preprocessing_done": True,
                 "index": index,
                 "docstore": docstore,
                 "embedding_model_global": embedding_model_global,
-                "pinecone_index": pinecone_index,
-                "vs": vs
+                # "pinecone_index": pinecone_index,
+                # "vs": vs
             })
 
-            print("✅ Preprocessing completed successfully!\n")
+           # **Save state to pickle file (excluding non-pickleable objects)**
+            session_state_to_save = session_state.copy()
+            session_state_to_save.pop("retriever", None)
+            session_state_to_save.pop("index", None)
+            session_state_to_save.pop("docstore", None)
+
+            with open(PICKLE_FILE_PATH, "wb") as f:
+                pickle.dump(session_state_to_save, f)
+
+            print("💾 Session state saved (excluding non-pickleable objects)!")
             return {"message": "Preprocessing completed successfully!"}
 
         except Exception as e:
@@ -125,8 +144,12 @@ async def chat_with_bot(prompt: str = Form(...)):
     if not session_state["preprocessing_done"]:
         raise HTTPException(status_code=400, detail="❌ Preprocessing must be completed before inferencing.")
 
-    if not session_state["selected_vectordb"] or not session_state["selected_chat_model"]:
-        raise HTTPException(status_code=400, detail="❌ Please select both a vector database and a chat model before chatting.")
+    if not session_state["selected_vectordb"]:
+        session_state["selected_vectordb"] = "FAISS"
+
+    if not session_state["selected_chat_model"]:
+        session_state["selected_chat_model"] = "meta-llama/Llama-3.3-70B-Instruct-Turbo" 
+
 
     # Store user message
     session_state["messages"].append({"role": "user", "content": prompt})
@@ -134,17 +157,13 @@ async def chat_with_bot(prompt: str = Form(...)):
     # Run inference
     try:
         response = inference(
-            session_state["selected_vectordb"],
-            session_state["selected_chat_model"],
-            prompt,
-            session_state["retriever"],
-            session_state["embedding_model_global"],
-            session_state["index"],
-            session_state["docstore"],
-            session_state["pinecone_index"],
-            session_state["vs"],
-            session_state["messages"]
-        )
+        session_state["selected_vectordb"],
+        session_state["selected_chat_model"],
+        prompt,
+        session_state["embedding_model_global"],
+        session_state["messages"]
+    )
+
 
         # Store assistant response
         session_state["messages"].append({"role": "assistant", "content": response})
@@ -158,10 +177,22 @@ async def chat_with_bot(prompt: str = Form(...)):
 
 @app.post("/reset")
 async def reset_chat():
-    """ Reset chatbot history """
+    """ Reset chatbot history and delete saved state """
     session_state["messages"] = []
-    print("🔄 Chat history reset.\n")
-    return {"message": "Chat history reset."}
+    session_state["preprocessing_done"] = False
+    session_state["retriever"] = None
+    session_state["index"] = None
+    session_state["docstore"] = None
+    session_state["embedding_model_global"] = None
+    # session_state["pinecone_index"] = None
+    # session_state["vs"] = None
+
+    # Delete the saved session file
+    if os.path.exists(PICKLE_FILE_PATH):
+        os.remove(PICKLE_FILE_PATH)
+        print("🗑️ Saved session state deleted!")
+
+    return {"message": "Chat history reset and session state cleared!"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

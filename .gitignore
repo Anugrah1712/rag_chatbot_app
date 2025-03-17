@@ -5,3 +5,18 @@ backend/db/*.bin
 backend/db/58db74fc-75ec-4e4d-898e-2189d757062c/data_level0.bin
 backend/db/*
 backend/db/*
+
+# Ignore large files
+faiss_index/
+scraped_data.pkl
+session_state.pkl
+
+# Ignore Node.js dependencies
+frontend/my-chatbot-app/node_modules/
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pkl
+
+
