@@ -23,7 +23,7 @@ const DeveloperConsole = ({ closeConsole, openChatbot }) => {
     "stsb-roberta-base",
   ];
 
-  const vectorDBs = ["Pinecone", "Chroma", "FAISS", "Qdrant", "Weaviate"];
+  const vectorDBs = ["Chroma", "FAISS" , "Pinecone" ,"Weaviate" , "Qdrant"];
 
   const chatModels = [
     "Qwen/QwQ-32B-Preview",
@@ -98,7 +98,7 @@ const DeveloperConsole = ({ closeConsole, openChatbot }) => {
 
   const handleFinalConfiguration = async () => {
     if (!selectedVectorDB || !selectedChatModel) {
-      alert("Please select both vector database and chat model.");
+      console.error("Please select both vector database and chat model.");
       return;
     }
   

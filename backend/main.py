@@ -12,6 +12,13 @@ import asyncio
 from fastapi.middleware.cors import CORSMiddleware
 import os 
 import pickle 
+from pinecone import Pinecone
+import os 
+from dotenv import load_dotenv
+import weaviate
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = FastAPI()
 
@@ -32,6 +39,32 @@ if os.path.exists(PICKLE_FILE_PATH):
     with open(PICKLE_FILE_PATH, "rb") as f:
         session_state = pickle.load(f)
         print("✅ Loaded saved session state!")
+
+    # Reinitialize Pinecone dynamically
+    if session_state.get("pinecone_index_name"):
+        pinecone = Pinecone(api_key=os.getenv("PINECONE_API_KEY"), environment="us-east-1")
+        session_state["pinecone_index"] = pinecone.Index(session_state["pinecone_index_name"])
+
+    # ✅ Ensure last selected vector DB and chat model are retained
+    session_state.setdefault("selected_vectordb", session_state.get("selected_vectordb", "FAISS"))
+    session_state.setdefault("selected_chat_model", session_state.get("selected_chat_model", "meta-llama/Llama-3.3-70B-Instruct-Turbo"))
+
+        # ✅ Initialize Weaviate Client if Needed
+    if session_state.get("vs"):
+        weaviate_url = os.getenv("WEAVIATE_URL")
+        weaviate_api_key = os.getenv("WEAVIATE_API_KEY")
+        session_state["weaviate_client"] = weaviate.connect_to_weaviate_cloud(
+            cluster_url=weaviate_url,
+            auth_credentials=weaviate.AuthApiKey(weaviate_api_key),
+        )
+
+    # ✅ Initialize Qdrant Client if Needed
+    if session_state.get("qdrant_client") is None:
+        from qdrant_client import QdrantClient
+        qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
+        qdrant_api_key = os.getenv("QDRANT_API_KEY", None)
+        session_state["qdrant_client"] = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)    
+
 else:
     session_state = {
         "retriever": None,
@@ -39,8 +72,11 @@ else:
         "index": None,
         "docstore": None,
         "embedding_model_global": None,
-        # "pinecone_index": None,
-        # "vs": None,
+        "pinecone_index_name": None,
+        "pinecone_index": None,
+        "vs": None,
+        "qdrant_client": None,
+        "weaviate_client": None,
         "selected_vectordb": "FAISS",
         "selected_chat_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
         "messages": []
@@ -87,28 +123,33 @@ async def preprocess(
                 print(f"❌ Web scraping failed: {str(e)}\n")
                 raise HTTPException(status_code=500, detail=f"Web scraping failed: {str(e)}")
 
+    
         # Process documents
         try:
-            index, docstore, index_to_docstore_id, vector_store, retriever, embedding_model_global = await preprocess_vectordbs(
-                doc_files, scraped_data , embedding_model, chunk_size, chunk_overlap
+            index, docstore, index_to_docstore_id, vector_store, retriever, embedding_model_global, pinecone_index_name , vs ,qdrant_client= await preprocess_vectordbs(
+            doc_files, scraped_data , embedding_model, chunk_size, chunk_overlap
             )
 
-         # Update session state
             session_state.update({
                 "retriever": retriever,
                 "preprocessing_done": True,
                 "index": index,
                 "docstore": docstore,
                 "embedding_model_global": embedding_model_global,
-                # "pinecone_index": pinecone_index,
-                # "vs": vs
+                "pinecone_index_name": pinecone_index_name,  # ✅ Now correctly defined
+                "vs": vs ,
+                "qdrant_client": qdrant_client
             })
+
 
            # **Save state to pickle file (excluding non-pickleable objects)**
             session_state_to_save = session_state.copy()
             session_state_to_save.pop("retriever", None)
             session_state_to_save.pop("index", None)
             session_state_to_save.pop("docstore", None)
+            session_state_to_save.pop("pinecone_index", None) 
+            session_state_to_save.pop("vs", None)
+            session_state_to_save.pop("qdrant_client", None)
 
             with open(PICKLE_FILE_PATH, "wb") as f:
                 pickle.dump(session_state_to_save, f)
@@ -126,17 +167,49 @@ async def preprocess(
 
 @app.post("/select_vectordb")
 async def select_vectordb(vectordb: str = Form(...)):
-    """ Set selected vector database """
+    """ Set selected vector database and persist it """
     session_state["selected_vectordb"] = vectordb
-    print(f"✅ Selected Vector Database: {vectordb}\n")
+
+    # ✅ Save state to pickle file (excluding unpicklable objects)
+    session_state_to_save = session_state.copy()
+    session_state_to_save.pop("retriever", None)
+    session_state_to_save.pop("index", None)
+    session_state_to_save.pop("docstore", None)
+    session_state_to_save.pop("pinecone_index", None)  # ✅ Exclude Pinecone
+    session_state_to_save.pop("vs", None)
+    session_state_to_save.pop("qdrant_client", None)
+
+    with open(PICKLE_FILE_PATH, "wb") as f:
+        pickle.dump(session_state_to_save, f)
+
+    print(f"✅ Selected Vector Database: {vectordb} (Saved to session state)\n")
     return {"message": f"Selected Vector Database: {vectordb}"}
+
+
 
 @app.post("/select_chat_model")
 async def select_chat_model(chat_model: str = Form(...)):
-    """ Set selected chat model """
+    """ Set selected chat model and persist it """
     session_state["selected_chat_model"] = chat_model
-    print(f"✅ Selected Chat Model: {chat_model}\n")
+
+    # ✅ Save state to pickle file (excluding unpicklable objects)
+    session_state_to_save = session_state.copy()
+    session_state_to_save.pop("retriever", None)
+    session_state_to_save.pop("index", None)
+    session_state_to_save.pop("docstore", None)
+    session_state_to_save.pop("pinecone_index", None)  # ✅ Exclude Pinecone
+    session_state_to_save.pop("vs", None)
+    session_state_to_save.pop("qdrant_client", None)  # ✅ Exclude Qdrant client
+
+
+    with open(PICKLE_FILE_PATH, "wb") as f:
+        pickle.dump(session_state_to_save, f)
+
+    print(f"✅ Selected Chat Model: {chat_model} (Saved to session state)\n")
     return {"message": f"Selected Chat Model: {chat_model}"}
+
+
+
 
 @app.post("/chat")
 async def chat_with_bot(prompt: str = Form(...)):
@@ -144,16 +217,22 @@ async def chat_with_bot(prompt: str = Form(...)):
     if not session_state["preprocessing_done"]:
         raise HTTPException(status_code=400, detail="❌ Preprocessing must be completed before inferencing.")
 
-    if not session_state["selected_vectordb"]:
-        session_state["selected_vectordb"] = "FAISS"
+    session_state["selected_vectordb"] = session_state.get("selected_vectordb", "FAISS")
+    session_state["selected_chat_model"] = session_state.get("selected_chat_model", "meta-llama/Llama-3.3-70B-Instruct-Turbo")
 
-    if not session_state["selected_chat_model"]:
-        session_state["selected_chat_model"] = "meta-llama/Llama-3.3-70B-Instruct-Turbo" 
 
 
     # Store user message
     session_state["messages"].append({"role": "user", "content": prompt})
 
+    pinecone_index_name = session_state.get("pinecone_index_name", None)
+    vs = session_state.get("vs", None)
+    qdrant_client = session_state.get("qdrant_client", None)
+
+    # # ✅ Ensure Pinecone index is reloaded if needed
+    # if session_state["selected_vectordb"] == "Pinecone" and pinecone_index_name:
+    #     pinecone = Pinecone(api_key=os.getenv("PINECONE_API_KEY"), environment="us-east-1")
+    #     session_state["pinecone_index"] = pinecone.Index(pinecone_index_name)
     # Run inference
     try:
         response = inference(
@@ -161,9 +240,11 @@ async def chat_with_bot(prompt: str = Form(...)):
         session_state["selected_chat_model"],
         prompt,
         session_state["embedding_model_global"],
-        session_state["messages"]
-    )
-
+        session_state["messages"],
+        pinecone_index_name,
+        vs,
+        qdrant_client
+        )
 
         # Store assistant response
         session_state["messages"].append({"role": "assistant", "content": response})

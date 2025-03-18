@@ -12,8 +12,8 @@ body {
 /* Developer Console Box */
 .developer-console {
   max-width: 700px;
-  margin: 50px auto;
-  padding: 30px;
+  margin: 10px auto;
+  padding: 10px;
   background: white;
   border-radius: 12px;
   box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.1);
@@ -38,10 +38,10 @@ h2 {
 /* Sections */
 .section {
   background: #fff;
-  padding: 15px;
+  padding: 10px;
   border-radius: 10px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   transition: transform 0.2s ease-in-out;
 }
 
@@ -106,18 +106,21 @@ input:focus, select:focus {
 
 /* Remove File Button */
 .remove-btn {
-  background: #ff4d4d;
-  color: white;
+  background: none;
+  color: #ff4d4d;
   border: none;
-  border-radius: 50%;
-  padding: 6px 10px;
+  font-size: 14px; /* Reduce size */
   cursor: pointer;
-  font-size: 14px;
-  transition: background 0.3s ease-in-out;
+  transition: color 0.3s ease-in-out;
+  padding: 4px; /* Reduce padding */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .remove-btn:hover {
-  background: #cc0000;
+  color: #cc0000;
+  background: none;
 }
 
 /* Buttons */
@@ -178,8 +181,9 @@ button:disabled {
 /* Responsive Design */
 @media (max-width: 768px) {
   .developer-console {
-      width: 90%;
-      padding: 20px;
+    max-width: 700px;
+    margin: 20px auto; /* Reduced margin */
+    padding: 20px; /* Reduced padding */
   }
 }
 
@@ -202,5 +206,17 @@ ul li {
 .url-input-container {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  background: #f8f9fa;
+  padding: 8px;
+  margin: 5px 0;
+  border-radius: 5px;
+  width: 100%;
+}
+.url-input-container input {
+  flex: 1; /* Ensure input takes remaining space */
+}
+
+.url-input-container .remove-btn {
+  margin-left: 10px; /* Add spacing between input and remove button */
 }

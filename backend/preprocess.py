@@ -10,6 +10,8 @@ import os
 from dotenv import load_dotenv
 from io import BytesIO
 
+import os 
+from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
@@ -115,74 +117,126 @@ def preprocess_faiss(text, embedding_model_name):
    
     return index, docstore, index_to_docstore_id, vector_store
 
-# def preprocess_weaviate(text, embedding_model_name):
-#     from langchain_community.embeddings import SentenceTransformerEmbeddings
-#     import os
-#     import weaviate
-#     from weaviate.auth import AuthApiKey
-#     from langchain_weaviate.vectorstores import WeaviateVectorStore
+def preprocess_weaviate(text, embedding_model_name):
+    from langchain_community.embeddings import SentenceTransformerEmbeddings
+    import os
+    import weaviate
+    from weaviate.auth import AuthApiKey
+    from langchain_weaviate.vectorstores import WeaviateVectorStore
 
-#     embedding_model = SentenceTransformerEmbeddings(model_name=embedding_model_name)
+    embedding_model = SentenceTransformerEmbeddings(model_name=embedding_model_name)
 
-#     weaviate_url = os.getenv("WEAVIATE_URL")
-#     weaviate_api_key = os.getenv("WEAVIATE_API_KEY")
+    weaviate_url = os.getenv("WEAVIATE_URL")
+    weaviate_api_key = os.getenv("WEAVIATE_API_KEY")
 
 
-#     client = weaviate.connect_to_weaviate_cloud(
-#         cluster_url=weaviate_url,
-#         auth_credentials=AuthApiKey(weaviate_api_key),
-#     )
+    client = weaviate.connect_to_weaviate_cloud(
+        cluster_url=weaviate_url,
+        auth_credentials=AuthApiKey(weaviate_api_key),
+    )
 
-#     vs = WeaviateVectorStore.from_documents(
-#         documents=text,
-#         embedding=embedding_model,
-#         client=client
-#     )
+    vs = WeaviateVectorStore.from_documents(
+        documents=text,
+        embedding=embedding_model,
+        client=client
+    )
    
-#     return vs
+    return vs
 
-# def preprocess_pinecone(text, embedding_model_name):
-#     import numpy as np
-#     import time
-#     from langchain_community.embeddings import SentenceTransformerEmbeddings
-#     from pinecone import Pinecone, ServerlessSpec
-#     import uuid
 
-#     embedding_model = SentenceTransformerEmbeddings(model_name=embedding_model_name)
-#     texts = [doc.page_content for doc in text]
-#     embeddings = embedding_model.embed_documents(texts)
-#     embeddings = np.array(embeddings).tolist()
+def preprocess_pinecone(text, embedding_model_name):
+    import numpy as np
+    import time
+    from langchain_community.embeddings import SentenceTransformerEmbeddings
+    from pinecone import Pinecone, ServerlessSpec
+    import uuid
 
-#     pinecone = Pinecone(
-#         api_key="pcsk_42Yw14_EaKdaMLiAJfWub3s2sEJYPW3jyXXjdCYkH8Mh8rD8wWJ3pS6oCCC9PGqBNuDTuf",
-#         environment="us-east-1"
-#     )
+    embedding_model = SentenceTransformerEmbeddings(model_name=embedding_model_name)
+    texts = [doc.page_content for doc in text]
+    embeddings = embedding_model.embed_documents(texts)
+    embeddings = np.array(embeddings).tolist()
 
-#     index_name = "test5"
-#     indexes = pinecone.list_indexes().names()
+    # Initialize Pinecone
+    pinecone = Pinecone(
+        api_key=os.getenv("PINECONE_API_KEY"),
+        environment="us-east-1"
+    )
 
-#     if index_name in indexes:
-#         pinecone.delete_index(index_name)
+    index_name = "test5"
+    indexes = pinecone.list_indexes().names()
 
-#     pinecone.create_index(
-#         name=index_name,
-#         dimension=len(embeddings[0]),
-#         metric="cosine",
-#         spec=ServerlessSpec(cloud="aws", region="us-east-1"),
-#         deletion_protection="disabled"
-#     )
+    # Create index if it does not exist
+    if index_name not in indexes:
+        pinecone.create_index(
+            name=index_name,
+            dimension=len(embeddings[0]),
+            metric="cosine",
+            spec=ServerlessSpec(cloud="aws", region="us-east-1"),
+            deletion_protection="disabled"
+        )
+        time.sleep(5)  # Wait for the index to be created
 
-#     # Reinitialize Pinecone index dynamically (not saving object)
-#     pinecone_index = pinecone.Index(index_name)
+    # Connect to existing Pinecone index
+    pinecone_index = pinecone.Index(index_name)
 
-#     # Upload embeddings in batches
-#     upsert_data = [(str(uuid.uuid4()), embeddings[i], {"text": texts[i]}) for i in range(len(texts))]
-#     batch_size = 100
-#     for i in range(0, len(upsert_data), batch_size):
-#         pinecone_index.upsert(vectors=upsert_data[i:i + batch_size])
-#         time.sleep(0.5)
+    # Upload embeddings in batches
+    upsert_data = [(str(uuid.uuid4()), embeddings[i], {"text": texts[i]}) for i in range(len(texts))]
+    batch_size = 100
+    for i in range(0, len(upsert_data), batch_size):
+        pinecone_index.upsert(vectors=upsert_data[i:i + batch_size])
+        time.sleep(0.5)
 
-#     return index_name  # ✅ Return only index_name, not the index object
+    return index_name  # ✅ Return only index_name, not the index object
+
+def preprocess_qdrant(text, embedding_model_name):
+    from qdrant_client import QdrantClient, models
+    from langchain_community.embeddings import SentenceTransformerEmbeddings
+    import numpy as np
+    import os
+
+    # ✅ Load Qdrant credentials
+    qdrant_url = os.getenv("QDRANT_URL")  # Default to local Qdrant
+    qdrant_api_key = os.getenv("QDRANT_API_KEY", None)
+    collection_name = os.getenv("QDRANT_COLLECTION_NAME")
+
+    # ✅ Initialize Qdrant Client
+    client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key , timeout=120)
+
+    # ✅ Define the embedding model
+    embedding_model = SentenceTransformerEmbeddings(model_name=embedding_model_name)
+
+    # ✅ Prepare text embeddings
+    texts = [doc.page_content for doc in text]
+    embeddings = embedding_model.embed_documents(texts)
+    embeddings = np.array(embeddings)
+
+    # ✅ Create a Qdrant collection if not exists
+    client.recreate_collection(
+        collection_name=collection_name,
+        vectors_config=models.VectorParams(size=embeddings.shape[1], distance=models.Distance.COSINE)
+    )
+
+    # ✅ Insert documents in batches
+    batch_size = 250
+    for i in range(0, len(texts), batch_size):
+        batch_texts = texts[i: i + batch_size]
+        batch_embs = embeddings[i: i + batch_size]
+
+        client.upsert(
+            collection_name=collection_name,
+            points=[
+                models.PointStruct(
+                    id=i + j,  # Assigning unique ID
+                    vector=batch_embs[j].tolist(),
+                    payload={"page_content": batch_texts[j]}
+                )
+                for j in range(len(batch_texts))
+            ]
+        )
+
+    print(f"✅ Qdrant: {len(texts)} documents stored in `{collection_name}` collection.")
+
+    return client  # ✅ Return Qdrant Client
 
 
 from langchain_community.embeddings import SentenceTransformerEmbeddings
@@ -207,6 +261,15 @@ async def preprocess_vectordbs(files: list[UploadFile], scraped_data, embedding_
     
     print("Processing FAISS...")
     index, docstore, index_to_docstore_id, vector_store = preprocess_faiss(text, embedding_model_name)
-    
 
-    return index, docstore, index_to_docstore_id, vector_store, retriever, embedding_model_global
+    print("Processing Pinecone...")
+    pinecone_index_name = preprocess_pinecone(text, embedding_model_name)
+
+    print("Processing Weaviate...")
+    vs = preprocess_weaviate(text, embedding_model_name)  
+
+    print("Processing Qdrant...")
+    qdrant_client = preprocess_qdrant(text, embedding_model_name)
+
+    return index, docstore, index_to_docstore_id, vector_store, retriever, embedding_model_global, pinecone_index_name, vs, qdrant_client  
+
