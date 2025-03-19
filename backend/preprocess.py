@@ -72,7 +72,7 @@ async def preprocess_text(files: list[UploadFile], scraped_data, size, overlap):
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=size, chunk_overlap=overlap)
     text_chunks = text_splitter.split_documents(docs)
-
+    # print(text_chunks)
     return text_chunks
 
 def preprocess_chroma(text, embedding_model_name, persist_directory):

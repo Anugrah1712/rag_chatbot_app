@@ -48,7 +48,7 @@ function Chatbot() {
   const handleResetHistory = () => {
     setMessages([
       { text: "Hello! 👋", sender: "bot" },
-      { text: "How can I help you today?", sender: "bot" },
+      { text: "How can I help you?", sender: "bot" },
     ]);
   };
 
